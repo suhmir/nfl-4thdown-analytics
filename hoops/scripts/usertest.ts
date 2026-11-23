@@ -63,6 +63,7 @@ const toLive = (m: Match) => { for (let i = 0; i < 600 && m.phase !== 'live'; i+
 // 4. Pass hands control to the receiver on catch and credits an assist on a quick score
 {
   const m = mk(); toLive(m);
+  for (const p of m.team(1)) { p.x = 5 + p.id; p.y = 44; } // keep defenders out of the passing lane
   const u = m.user!;
   const mates = m.teammates(u);
   m.update(1 / 60, inp({ passPressed: true, mx: (mates[0].x - u.x), my: (mates[0].y - u.y) }));

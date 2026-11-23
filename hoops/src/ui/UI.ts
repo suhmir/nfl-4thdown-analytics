@@ -138,22 +138,22 @@ export class UI {
         <div class="ctrl-card">
           <h3>Offense</h3>
           <ul>
-            <li><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span>Move &amp; dribble</li>
-            <li><span class="keys"><kbd>Shift</kbd></span>Sprint (uses stamina)</li>
-            <li><span class="keys"><kbd>Space</kbd> hold → release</span>Jump shot. Let go in the <b class="g">green</b> zone</li>
-            <li><span class="keys"><kbd>Space</kbd> near rim</span>Layup — sprint in for a dunk</li>
-            <li><span class="keys"><kbd>E</kbd></span>Pass toward your movement / mouse</li>
-            <li><span class="keys"><kbd>E</kbd> off-ball</span>Call for the ball</li>
+            <li><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span><span>Move &amp; dribble</span></li>
+            <li><span class="keys"><kbd>Shift</kbd></span><span>Sprint (uses stamina)</span></li>
+            <li><span class="keys"><kbd>Space</kbd> hold → release</span><span>Jump shot. Let go in the <b class="g">green</b> zone</span></li>
+            <li><span class="keys"><kbd>Space</kbd> near rim</span><span>Layup — sprint in for a dunk</span></li>
+            <li><span class="keys"><kbd>E</kbd></span><span>Pass toward your movement / mouse</span></li>
+            <li><span class="keys"><kbd>E</kbd> off-ball</span><span>Call for the ball</span></li>
           </ul>
         </div>
         <div class="ctrl-card">
           <h3>Defense</h3>
           <ul>
-            <li><span class="keys"><kbd>Space</kbd></span>Jump to contest or block</li>
-            <li><span class="keys"><kbd>E</kbd></span>Swipe for a steal</li>
-            <li><span class="keys"><kbd>Q</kbd></span>Switch to player nearest the ball</li>
-            <li><span class="keys"><kbd>Esc</kbd> / <kbd>P</kbd></span>Pause</li>
-            <li><span class="keys"><kbd>M</kbd></span>Mute</li>
+            <li><span class="keys"><kbd>Space</kbd></span><span>Jump to contest or block</span></li>
+            <li><span class="keys"><kbd>E</kbd></span><span>Swipe for a steal</span></li>
+            <li><span class="keys"><kbd>Q</kbd></span><span>Switch to player nearest the ball</span></li>
+            <li><span class="keys"><kbd>Esc</kbd> / <kbd>P</kbd></span><span>Pause</span></li>
+            <li><span class="keys"><kbd>M</kbd></span><span>Mute</span></li>
           </ul>
         </div>
         <div class="ctrl-card wide">

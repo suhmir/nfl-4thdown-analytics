@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "test": "npm run test:mechanics && npm run test:sim",
+    "test:mechanics": "esbuild scripts/usertest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/hoops/usertest.cjs && node node_modules/.cache/hoops/usertest.cjs",
+    "test:sim": "esbuild scripts/simtest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/hoops/simtest.cjs && node node_modules/.cache/hoops/simtest.cjs 10"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.1.0",
@@ -15,6 +18,7 @@
     "phaser": "^3.88.2"
   },
   "devDependencies": {
+    "esbuild": "^0.21.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }

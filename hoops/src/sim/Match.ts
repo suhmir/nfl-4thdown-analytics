@@ -649,9 +649,9 @@ export class Match {
     b.state = 'loose';
     b.owner = null;
     const ax = b.x - COURT.HOOP.x; const ay = b.y - COURT.HOOP.y; const al = Math.hypot(ax, ay) || 1;
-    b.vx = (ax / al) * rand(10, 16) + rand(-4, 4);
-    b.vy = (ay / al) * rand(10, 16) + rand(-2, 4);
-    b.vz = rand(-6, 5);
+    b.vx = (ax / al) * rand(6, 11) + rand(-3, 3);
+    b.vy = (ay / al) * rand(6, 11) + rand(-1, 3);
+    b.vz = rand(-5, 4);
     b.lastTouch = d.side;
     b.shot = null;
     b.reboundable = true;
@@ -753,6 +753,17 @@ export class Match {
       default:
         // Miss: hand off to real physics from the contact point.
         b.state = 'loose';
+        if (s.result === 'rimOut' || s.result === 'layupOut') {
+          // Carom off the iron: away from the rim center, biased back toward the shooter.
+          const ox = b.x - H.x; const oy = b.y - H.y; const ol = Math.hypot(ox, oy) || 1;
+          const sx = s.shooter.x - H.x; const sy = s.shooter.y - H.y; const sl = Math.hypot(sx, sy) || 1;
+          let dx = (ox / ol) * 0.6 + (sx / sl) * 0.4; let dy = (oy / ol) * 0.6 + (sy / sl) * 0.4;
+          const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+          const spd = rand(3.5, 8) + hoopDist(s.shooter.x, s.shooter.y) * 0.12;
+          b.vx = dx * spd; b.vy = Math.max(-2, dy * spd); b.vz = rand(5, 11);
+          b.z = Math.max(b.z, H.z + PHYS.BALL_R + 0.1);
+          this.ev.emit('rim', { strength: 0.9 });
+        }
         b.touchedRim = s.result !== 'airball';
         if (s.result === 'airball') this.ev.emit('banner', { text: 'AIRBALL', tone: 'warn' });
         this.ev.emit('miss', { p: s.shooter });
