@@ -15,7 +15,7 @@ WEB = ROOT / "web"
 OUT = ROOT / "dist" / "artifact" / "index.html"
 MODULES = ["util.js", "data.js", "charts.js", "views.js", "app.js"]
 VIEWS = ["overview", "games", "game", "decision", "decisionsList", "teams", "team", "coaches", "coach",
-         "lab", "bindLab", "methodology", "notFound"]
+         "lab", "bindLab", "methodology", "notFound", "rankings", "guide"]
 
 
 def bundle() -> str:

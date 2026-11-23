@@ -4,12 +4,14 @@ import * as V from "./views.js";
 
 const NAV = [
   ["overview", "Overview", "#/", "overview"],
+  ["rankings", "Rankings", "#/rankings", "trophy"],
   ["games", "Games", "#/games", "games"],
   ["decisions", "Decisions", "#/decisions", "decisions"],
   ["teams", "Teams", "#/teams", "teams"],
-  ["coaches", "Coaches", "#/coaches", "coaches"],
+  ["coaches", "Coaches", "#/coaches", "coaches", "hide-sm-nav"],
   ["lab", "What-if Lab", "#/lab", "lab"],
-  ["methodology", "Method", "#/methodology", "method"],
+  ["guide", "Start here", "#/guide", "guide"],
+  ["methodology", "Method", "#/methodology", "method", "hide-sm-nav"],
 ];
 
 const store = {
@@ -69,7 +71,7 @@ function seasonFromArg(section, arg) {
   return null;
 }
 
-const CRUMB = { overview: "Overview", games: "Games", game: "Game", decision: "Decision", decisions: "Decisions", teams: "Teams", team: "Team", coaches: "Coaches", coach: "Coach", lab: "What-if Lab", methodology: "Methodology" };
+const CRUMB = { rankings: "Coach rankings", guide: "Start here", overview: "Overview", games: "Games", game: "Game", decision: "Decision", decisions: "Decisions", teams: "Teams", team: "Team", coaches: "Coaches", coach: "Coach", lab: "What-if Lab", methodology: "Methodology" };
 const PARENT = { game: ["Games", "#/games"], decision: ["Decisions", "#/decisions"], team: ["Teams", "#/teams"], coach: ["Coaches", "#/coaches"] };
 
 async function render() {
@@ -92,7 +94,7 @@ async function render() {
     const routes = {
       overview: () => V.overview(), games: () => V.games(params), game: () => V.game(arg), decision: () => V.decision(arg),
       decisions: () => V.decisionsList(params), teams: () => V.teams(params), team: () => V.team(arg),
-      coaches: () => V.coaches(params), coach: () => V.coach(arg), lab: () => V.lab(arg, params), methodology: () => V.methodology(),
+      coaches: () => V.coaches(params), coach: () => V.coach(arg), rankings: () => V.rankings(), guide: () => V.guide(), lab: () => V.lab(arg, params), methodology: () => V.methodology(),
     };
     html = await (routes[section] || (() => V.notFound("Page")))();
   } catch (e) {
@@ -181,7 +183,7 @@ async function boot() {
   setTheme(store.get("nfldi.theme") || document.documentElement.getAttribute("data-theme") || "dark");
   document.getElementById("theme").addEventListener("click", () => setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   initTooltip();
-  document.getElementById("nav").innerHTML = NAV.map(([k, label, href, ic]) => `<a href="${href}" data-key="${k}">${icon(ic)}<span>${label}</span></a>`).join("");
+  document.getElementById("nav").innerHTML = NAV.map(([k, label, href, ic, cls = ""]) => `<a href="${href}" data-key="${k}" class="${cls}">${icon(ic)}<span>${label}</span></a>`).join("");
   const m = await loadManifest();
   const seasons = [...m.seasons].sort((a, b) => b.season - a.season);
   document.getElementById("season-seg").innerHTML = seasons.map((s) =>

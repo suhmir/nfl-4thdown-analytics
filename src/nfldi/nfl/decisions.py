@@ -38,7 +38,8 @@ SNAP_COLUMNS = [
     "desc", "play_type", "play_type_nfl", "rush", "pass", "qb_kneel", "qb_spike",
     "aborted_play", "penalty", "penalty_team", "penalty_type",
     "fourth_down_converted", "fourth_down_failed", "field_goal_result",
-    "punt_blocked", "touchdown", "wp", "wpa", "result", "spread_line", "roof",
+    "punt_blocked", "touchdown", "wp", "wpa", "vegas_wp", "vegas_wpa", "result", "spread_line", "roof",
+    "home_score", "away_score",
 ]
 
 

@@ -49,6 +49,12 @@ def add_metrics(decisions: pd.DataFrame) -> pd.DataFrame:
     d["competitive"] = d["best_wp"].between(lo, hi)
 
     # Outcome, kept strictly separate from decision quality.
+    # result_vs_exp (pp): win chance after the play minus the win chance the
+    # model expected for the chosen option, on nflverse's spread-adjusted WP
+    # scale (the scale nfl4th's values sit on). Positive = better than expected.
+    if {"vegas_wp", "vegas_wpa"} <= set(d.columns):
+        d["result_vs_exp"] = 100 * (d["vegas_wp"] + d["vegas_wpa"] - d["chosen_wp"])
+        d["worked"] = d["result_vs_exp"] >= 0
     d["posteam_won"] = np.where(
         d["result"] == 0, np.nan,
         ((d["result"] > 0) == (d["posteam"] == d["home_team"])).astype(float),

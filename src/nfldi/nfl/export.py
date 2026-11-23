@@ -12,6 +12,7 @@ import pandas as pd
 from . import aggregate as A
 from . import decisions as D
 from . import metrics as M
+from . import rankings as R
 from . import sources as S
 
 WEB_DATA = Path(__file__).resolve().parents[3] / "web" / "data"
@@ -72,11 +73,15 @@ def _decision_record(r) -> dict:
         "gb": r["go_boost"], "gb_lo": r["go_boost_lo"], "gb_hi": r["go_boost_hi"],
         "boot_pct": r["boot_pct"], "boot_go_pct": r["boot_go_pct"],
         "tier": r["tier"], "err": r["error_type"], "comp": bool(r["competitive"]),
+        "stake": r["stake"], "right": bool(r["right_call"]), "critical": bool(r["critical"]),
         "flags": flags, "prior": int(r["prior_snaps"]), "desc": r["desc"],
         "out": {
             "conv": None if pd.isna(r["fourth_down_converted"]) or r["choice"] != "go" else int(r["fourth_down_converted"]),
             "fg": r["field_goal_result"] if isinstance(r["field_goal_result"], str) else None,
             "td": bool(r["touchdown"] == 1), "wpa": r["wpa"], "won": r["posteam_won"],
+            "rve": r["result_vs_exp"], "worked": bool(r["worked"]),
+            "pos_final": int(r["home_score"] if home else r["away_score"]),
+            "def_final": int(r["away_score"] if home else r["home_score"]),
         },
     }
 
@@ -99,10 +104,24 @@ def _view(d: pd.DataFrame) -> dict:
     }
 
 
+def _rankings(d: pd.DataFrame) -> dict:
+    rows, league = R.coach_rankings(d)
+    c = d[d["competitive"]]
+    return {
+        "coaches": rows,
+        "league_score": league,
+        "critical": int(c["critical"].sum()),
+        "critical_right_rate": float(c.loc[c["critical"], "right_call"].mean()),
+        "min_games": R.MIN_GAMES,
+        "critical_stake": R.CRITICAL_STAKE,
+        "n_boot": R.N_BOOT,
+    }
+
+
 def build_season(season: int, nfl4th: pd.DataFrame, final: bool) -> dict:
     pbp = S.load_pbp(season)
     decisions, snaps = D.build_decisions(pbp, nfl4th)
-    d = M.add_metrics(decisions)
+    d = R.add_ranking_fields(M.add_metrics(decisions))
     out_dir = WEB_DATA / str(season)
     import shutil
     shutil.rmtree(out_dir, ignore_errors=True)
@@ -150,6 +169,7 @@ def build_season(season: int, nfl4th: pd.DataFrame, final: bool) -> dict:
         "games": games.to_dict("records"),
         "views": {"all": _view(d), "competitive": _view(d[d["competitive"]])},
         "top_costly": d.nlargest(25, "wp_cost")["decision_id"].tolist(),
+        "rankings": _rankings(d),
     }
     _write(out_dir / "summary.json", summary)
     return {"season": season, "status": summary["status"], "through_week": summary["through_week"],

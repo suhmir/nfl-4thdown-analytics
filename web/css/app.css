@@ -485,3 +485,48 @@ svg.chart [data-tip] { cursor: pointer; }
   .search { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- Plain-language layer ---------- */
+.help {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; margin-left: 5px; vertical-align: 1px;
+  font-size: 10px; font-weight: 700; font-family: var(--font); color: var(--text-3); border: 1px solid var(--line-strong); cursor: help;
+  text-transform: none; letter-spacing: 0; flex: none;
+}
+.help:hover, .help:focus { color: var(--accent); border-color: var(--accent); outline: none; }
+.plain { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; background: rgba(92, 225, 230, 0.07); border: 1px solid var(--line-strong); font-size: 15px; line-height: 1.55; }
+.plain .ic { flex: none; color: var(--accent); margin-top: 2px; }
+.plain .ic svg { width: 18px; height: 18px; }
+.plain b { color: var(--text); }
+.newbie { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: space-between; margin-bottom: 18px; }
+.newbie p { margin: 0; color: var(--text-2); }
+.quad { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; font-size: 12.5px; }
+.quad .qh { color: var(--text-3); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; display: grid; place-items: center; text-align: center; padding: 4px; }
+.quad .qc { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); color: var(--text-2); min-height: 64px; }
+.quad .qc b { display: block; color: var(--text); font-size: 13px; margin-bottom: 2px; }
+.quad .qc.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); background: var(--panel-hi); }
+.quad .qc .n { font-family: var(--mono); font-size: 20px; color: var(--text); font-weight: 600; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.step { display: flex; gap: 12px; }
+.step .num { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-family: var(--mono); font-weight: 600; color: var(--accent); border: 1px solid var(--line-strong); }
+.step h3 { margin: 0 0 4px; font-size: 14px; }
+.step p { margin: 0; color: var(--text-2); font-size: 13.5px; }
+.rank-num { font-family: var(--mono); font-size: 20px; font-weight: 600; width: 34px; text-align: right; }
+.tierchip { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.tierchip svg { width: 12px; height: 12px; }
+.tierchip.above { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.tierchip.below { color: var(--serious); background: color-mix(in srgb, var(--serious) 14%, transparent); }
+.tierchip.avg { color: var(--text-2); background: var(--panel-hi); }
+.tierchip.nr { color: var(--text-3); border: 1px dashed var(--line-strong); }
+.scorebar { position: relative; height: 22px; min-width: 160px; }
+.scorebar .track { position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: var(--line); }
+.scorebar .rng { position: absolute; top: 7px; height: 8px; border-radius: 4px; background: var(--accent); opacity: 0.3; }
+.scorebar .pt { position: absolute; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel-solid); transform: translateX(-6px); }
+.scorebar .avg { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--text-3); }
+.options-explain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.glossary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+.glossary div b { display: block; color: var(--text); }
+.glossary div { color: var(--text-2); font-size: 13.5px; }
+@media (max-width: 900px) {
+  .steps, .options-explain, .glossary { grid-template-columns: 1fr; }
+  .nav a.hide-sm-nav { display: none; }
+}

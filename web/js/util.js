@@ -73,6 +73,8 @@ const P = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   dice: '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="16" r="1.2"/><circle cx="12" cy="12" r="1.2"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
+  guide: '<path d="M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5c-3-.5-6 0-8 1.5z"/><path d="M12 6v14.5"/>',
   logo: '<path d="M4 18 12 4l8 14"/><path d="M8 12h8"/><circle cx="12" cy="18" r="1.6"/>',
 };
 export const icon = (name, extra = "") =>
@@ -109,4 +111,62 @@ export function verdictHtml(d) {
   if (d.cost < 0.05) return `<span class="verdict ok">${icon("check")}Matches model</span>`;
   if (d.tier === "toss_up") return `<span class="verdict meh">${icon("scale")}Close call</span>`;
   return `<span class="verdict bad">${icon("alert")}${ERR[d.err] || "Differs"}</span>`;
+}
+
+// ---------- Plain-language layer ----------
+// One definition per term, shown through the "?" help icons and on the guide page.
+export const GLOSSARY = {
+  winChance: ["Win chance", "The model's estimate of how often a team in this exact situation goes on to win. 70% means teams in this spot win about 7 times out of 10."],
+  pts: ["Points (pts)", "Changes in win chance are measured in percentage points. Going from 60% to 65% is +5 pts. “pp” means the same thing."],
+  cost: ["Win chance given up", "How much lower the team's win chance was with the option it chose, compared with the model's best option. 0 means it picked the best option."],
+  goKick: ["Go vs. kick", "How much better going for it was than the best kick (punt or field goal), in pts of win chance. Positive = the model preferred going."],
+  clear: ["Clear call vs. toss-up", "The model's numbers come with a range of uncertainty. If the whole range points one way, it's a clear call. If it could go either way, it's a toss-up, and coaches aren't marked down much for those."],
+  critical: ["Critical decision", "A fourth down in a game that was still competitive, where picking the wrong side (go vs. kick) would cost at least 1 pt of win chance."],
+  score: ["Decision Score", "Of all the win chance at stake in a coach's go-or-kick decisions, the share where they picked the side the model preferred. Bigger decisions count more. 100% = always agreed with the model."],
+  rve: ["Results vs. expected", "Did the play turn out better or worse than the model expected for the option chosen? This reflects players' execution and luck, not the decision itself."],
+  range: ["Range", "Where the true value plausibly lies (90% of the time). If two coaches' ranges overlap a lot, the data can't say who is better."],
+  rankRange: ["Likely rank", "If we replayed the season's games many times with different luck, this is the span of ranks the coach usually landed in."],
+  tier: ["Tier", "Above average / below average only when the coach's whole range sits above or below the league average. Everyone else is in the average range."],
+  goRate: ["Went for it", "The share of fourth downs where the team ran a play instead of punting or kicking a field goal."],
+  model: ["The model (nfl4th)", "A widely used public fourth-down model by analyst Ben Baldwin, built from years of NFL play-by-play. It estimates win chance for each option using the score, clock, field position, distance, timeouts and the betting line."],
+  competitive: ["Competitive only", "Hides decisions in blowouts (where the best option's win chance was under 2% or over 98%), since those barely matter."],
+};
+
+export function help(key) {
+  const g = GLOSSARY[key];
+  if (!g) return "";
+  return `<span class="help" tabindex="0" role="note" aria-label="${esc(g[0])}: ${esc(g[1])}" data-tip="${tip(g[0]) + esc(`<div style="color:var(--text-2);max-width:260px">${esc(g[1])}</div>`)}">?</span>`;
+}
+
+const optVerb = { go: "went for it", punt: "punted", fg: "kicked a field goal" };
+const optNoun = { go: "going for it", punt: "punting", fg: "a field goal" };
+
+/** One plain-English sentence or two describing a decision. */
+export function plainEnglish(d) {
+  const where = d.yl > 50 ? `from its own ${100 - d.yl}-yard line` : d.yl === 50 ? "from midfield" : `at the opponent's ${d.yl}`;
+  const lead = d.sd === 0 ? "with the game tied" : d.sd > 0 ? `leading by ${d.sd}` : `trailing by ${-d.sd}`;
+  const when = d.qtr >= 5 ? "in overtime" : `with ${clock(d.clock)} left in the ${["", "1st", "2nd", "3rd", "4th"][d.qtr]} quarter`;
+  const s1 = `${teamName(d.pos)} faced 4th & ${d.gtg ? "goal" : d.ytg} ${where}, ${lead} ${when}, and ${optVerb[d.choice]}.`;
+  const best = `${(100 * d.best_wp).toFixed(0)}%`;
+  const chosen = `${(100 * d.chosen_wp).toFixed(0)}%`;
+  let s2;
+  if (d.cost < 0.05) s2 = `That was the model's top option, giving them about a ${chosen} chance to win.`;
+  else if (d.tier === "toss_up") s2 = `The model slightly preferred ${optNoun[d.best]} (${best} vs. ${chosen} win chance), but it's a close call either way.`;
+  else s2 = `The model clearly preferred ${optNoun[d.best]}: about a ${best} chance to win, versus ${chosen} for what they did. That's ${d.cost.toFixed(1)} pts of win chance left on the table.`;
+  return `${s1} ${s2}`;
+}
+
+/** Call quality vs. result for one decision. */
+export function callResult(d) {
+  const call = d.right ? "right" : d.tier === "toss_up" ? "close" : "wrong";
+  const worked = d.out.worked;
+  const lesson = {
+    "right|true": ["Right call, and it worked", "The decision was sound and the play delivered."],
+    "right|false": ["Right call, bad result", "The decision was sound; the play just didn't work. Good process, unlucky outcome."],
+    "wrong|true": ["Risky call that paid off", "The model preferred the other option, but this one worked out. A good result doesn't make it a good decision."],
+    "wrong|false": ["Wrong call, and it hurt", "The model preferred the other option, and this one didn't work out either."],
+    "close|true": ["Close call, and it worked", "Either option was reasonable here, and this one turned out well."],
+    "close|false": ["Close call, didn't work out", "Either option was reasonable here; this one didn't pay off."],
+  }[`${call}|${worked}`];
+  return { call, worked, title: lesson[0], text: lesson[1] };
 }

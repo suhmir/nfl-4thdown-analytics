@@ -2,6 +2,7 @@ import { state, seasonData, scoped, view, gameWP, seasonMeta, router } from "./d
 import {
   esc, pct, pp, signed, num, clock, qlabel, fieldPos, downDist, scoreText, weekLabel, weekShort,
   teamName, icon, tip, verdictHtml, smallSample, OPT, OPT_SHORT, TIER, ERR, SMALL_N, TEAMS,
+  GLOSSARY, help, plainEnglish, callResult,
 } from "./util.js";
 import { rankChart, dumbbell, lineChart, heatmap, wpChart, fieldGraphic, intervalBar } from "./charts.js";
 
@@ -78,12 +79,13 @@ export async function overview() {
     `How much win probability do NFL coaches <span class="grad">leave on the table</span> on fourth down?`,
     `Every fourth-down decision in the ${meta.season} season, scored against nfl4th's model using only what was known before the snap. Decision quality is judged separately from how the play turned out.`, scopeNote())}
 
+  <div class="panel newbie"><p>${icon("guide", 'width="16" height="16" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"')}<b style="color:var(--text)">New here?</b> Every fourth down gets graded on the odds before the snap, not on how it turned out.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#/guide">3-minute guide</a><a class="btn primary" href="#/rankings">${icon("trophy")}Coach rankings</a></div></div>
   <div class="grid g-4">
     ${stat("Decisions analyzed", num(L.decisions), `${num(L.games)} games${live ? ` · ${meta.pending_games} pending model values` : ""}`)}
-    ${stat("Went for it", pct(L.go_rate), `Model recommended going in <b>${pct(L.model_go_rate)}</b>`,
+    ${stat(`Went for it${help("goRate")}`, pct(L.go_rate), `Model recommended going in <b>${pct(L.model_go_rate)}</b>`,
       `<div class="bar" data-tip="${tip("Go rate", [["Actual", pct(L.go_rate)], ["Model recommended", pct(L.model_go_rate)]])}"><i style="width:${100 * L.go_rate}%;background:var(--text)"></i><b style="left:${100 * L.model_go_rate}%;background:var(--go)"></b></div>`)}
-    ${stat("Followed clear “go” calls", pct(L.clear_go_rate), `${num(L.clear_go)} situations where the model's 80% interval favoured going`)}
-    ${stat("WP forgone per team-game", `${L.wp_cost_per_game_team.toFixed(2)}<small>pp</small>`, `${num(L.wp_cost, 0)} pp across the league (model estimate)`)}
+    ${stat(`Followed clear “go” calls${help("clear")}`, pct(L.clear_go_rate), `${num(L.clear_go)} situations where the model's 80% interval favoured going`)}
+    ${stat(`Win chance given up per game${help("cost")}`, `${L.wp_cost_per_game_team.toFixed(2)}<small>pts</small>`, `Per team, per game. ${num(L.wp_cost, 0)} pts across the league (model estimate)`)}
   </div>
 
   <div class="insights" style="margin-top:16px">
@@ -94,7 +96,7 @@ export async function overview() {
 
   <div class="grid g-main" style="margin-top:16px">
     <div class="panel">
-      <div class="panel-head"><div><h2 class="sec">Win probability left on the table, per game</h2><div class="sec-sub">Model-estimated WP forgone per game · line = 90% bootstrap interval over games · ⚠ small sample</div></div><a class="panel-link" href="#/teams">Team reports →</a></div>
+      <div class="panel-head"><div><h2 class="sec">Win chance left on the table, per game</h2><div class="sec-sub">Lower is better · dot = estimate, line = 90% range${help("range")} · ⚠ small sample</div></div><a class="panel-link" href="#/teams">Team reports →</a></div>
       ${rank}
     </div>
     <div class="panel">
@@ -193,11 +195,11 @@ function optionCards(d, { selected = null, clickable = false } = {}) {
       o === d.choice ? '<span class="tag chosen">Chosen</span>' : "",
       selected && o === selected && o !== d.choice ? '<span class="tag alt">What-if</span>' : "",
     ].join("");
-    const delta = na ? "" : o === d.best ? "best option" : `${signed(100 * (wp - d.best_wp), 2)} pp vs best`;
+    const delta = na ? "" : o === d.best ? "best option" : `${signed(100 * (wp - d.best_wp), 1)} pts vs. best`;
     return `<${clickable && !na ? `button data-alt="${o}"` : "div"} class="option-card ${o} ${o === d.best ? "best" : ""} ${na ? "na" : ""} ${selected === o ? "sel" : ""} ${clickable && !na ? "clickable" : ""}">
       <span class="opt ${o}">${OPT[o]}</span>
       <div class="pct">${na ? "n/a" : pct(wp)}</div>
-      <div class="dim" style="font-size:12px">${na ? "Not modeled as available here" : `Win probability · ${delta}`}</div>
+      <div class="dim" style="font-size:12px">${na ? "Not modeled as available here" : `Win chance · ${delta}`}</div>
       <div class="meter"><i style="width:${na ? 0 : 100 * wp}%"></i></div>
       <div class="lbls">${tags}</div>
     </${clickable && !na ? "button" : "div"}>`;
@@ -210,9 +212,9 @@ function explanation(d) {
   const clear = d.tier !== "toss_up";
   const chosen = d.choice === d.best
     ? `${esc(d.pos)} chose <b>${OPT[d.choice].toLowerCase()}</b>, matching the model.`
-    : `${esc(d.pos)} chose <b>${OPT[d.choice].toLowerCase()}</b>; under the model that is <b>${pp(d.cost, 2)}</b> of win probability below the best option.`;
-  return `<p style="margin:0 0 10px">The model's best option is <b>${OPT[d.best].toLowerCase()}</b>${margin != null ? `, ahead of ${OPT[opts[1]].toLowerCase()} by ${pp(margin, 2)}` : ""}. ${chosen}</p>
-  <p style="margin:0 0 10px">On the go-vs-kick question, nfl4th's 80% bootstrap interval runs from <b>${signed(d.gb_lo, 2)}</b> to <b>${signed(d.gb_hi, 2)} pp</b> and ${d.boot_go_pct != null ? `${Math.round(d.boot_go_pct)}% of draws favoured going` : ""}. ${clear ? "The interval excludes zero, so this is treated as a <b>clear</b> call." : "The interval spans zero, so this is a <b>close call</b>: reasonable coaches could disagree, and the cost should be read loosely."}</p>
+    : `${esc(d.pos)} chose <b>${OPT[d.choice].toLowerCase()}</b>; under the model that is <b>${d.cost.toFixed(1)} pts</b> of win chance below the best option.`;
+  return `<p style="margin:0 0 10px">The model's best option is <b>${OPT[d.best].toLowerCase()}</b>${margin != null ? `, ahead of ${OPT[opts[1]].toLowerCase()} by ${margin.toFixed(1)} pts of win chance` : ""}. ${chosen}</p>
+  <p style="margin:0 0 10px">On the go-vs-kick question, the model's uncertainty range (80%) runs from <b>${signed(d.gb_lo, 1)}</b> to <b>${signed(d.gb_hi, 1)} pts</b> and ${d.boot_go_pct != null ? `${Math.round(d.boot_go_pct)}% of draws favoured going` : ""}. ${clear ? "The interval excludes zero, so this is treated as a <b>clear</b> call." : "The interval spans zero, so this is a <b>close call</b>: reasonable coaches could disagree, and the cost should be read loosely."}</p>
   <p style="margin:0" class="dim">The model accounts for down, distance, field position, score, clock, timeouts, the pre-game spread and total (a proxy for team strength) and roof type. It does not know the specific kicker, injuries, the play call, or weather beyond roof type. The interval only covers nfl4th's own conversion and first-down models, so true uncertainty is wider.</p>`;
 }
 
@@ -233,6 +235,7 @@ export async function decision(id) {
     `${esc(teamName(d.pos))} · ${downDist(d)}, ${qlabel(d.qtr)} ${clock(d.clock)}`, "",
     `<div style="display:flex;gap:8px;flex-wrap:wrap">${prev ? `<a class="btn" href="#/decision/${prev.id}">← Prev</a>` : ""}${next ? `<a class="btn" href="#/decision/${next.id}">Next →</a>` : ""}<a class="btn primary" href="#/lab/${d.id}">${icon("lab")}What-if lab</a></div>`)}
 
+  <div class="plain" style="margin-bottom:16px"><span class="ic">${icon("info")}</span><div><b>In plain English:</b> ${esc(plainEnglish(d))}</div></div>
   <div class="grid g-main">
     <div class="panel hud">
       <div class="panel-head"><h2 class="sec">Situation</h2><div style="display:flex;gap:8px;align-items:center">${tierTag(d.tier)}${verdictHtml(d)}</div></div>
@@ -253,26 +256,39 @@ export async function decision(id) {
     <div class="panel">
       <div class="panel-head"><h2 class="sec">Decision quality</h2><span class="dim" style="font-size:12px">judged before the snap</span></div>
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
-        <div class="delta-big ${d.cost >= 0.05 ? "neg" : "pos"}">${d.cost >= 0.05 ? `−${d.cost.toFixed(2)}` : "0.00"}</div><div class="muted">pp win probability vs. the model's best option</div>
+        <div class="delta-big ${d.cost >= 0.05 ? "neg" : "pos"}">${d.cost >= 0.05 ? `−${d.cost.toFixed(2)}` : "0.00"}</div><div class="muted">pts of win chance given up vs. the model's best option${help("cost")}</div>
       </div>
       <div style="display:flex;gap:16px;margin:10px 0 4px;flex-wrap:wrap"><span class="muted">Chose ${optTag(d.choice)}</span><span class="muted">Model ${optTag(d.best)}</span></div>
       <div style="margin-top:12px">${d.gb_lo != null ? intervalBar(d) : ""}</div>
-      <div class="sec-sub" style="margin-top:4px">Go − best kick (pp) · bar = nfl4th 80% bootstrap interval</div>
+      <div class="sec-sub" style="margin-top:4px">Go vs. kick${help("goKick")}: dot = model's estimate, bar = its uncertainty range${help("clear")}</div>
     </div>
   </div>
 
   <div class="panel" style="margin-top:16px">
-    <div class="panel-head"><div><h2 class="sec">Options as the model saw them</h2><div class="sec-sub">Estimated win probability for ${esc(d.pos)} under each choice</div></div></div>
+    <div class="panel-head"><div><h2 class="sec">Options as the model saw them</h2><div class="sec-sub">Estimated win chance${help("winChance")} for ${esc(d.pos)} under each choice</div></div></div>
     ${optionCards(d)}
     <div style="margin-top:16px;font-size:14px;color:var(--text-2)">${explanation(d)}</div>
   </div>
 
   <div class="grid g-2" style="margin-top:16px">
     <div class="panel">
-      <div class="panel-head"><div><h2 class="sec">What happened</h2><div class="sec-sub">Shown for context only. Not used to grade the decision.</div></div></div>
-      <dl class="kv"><div><dt>Result</dt><dd style="font-family:var(--font)">${outcome}</dd></div>
-      <div><dt>WP added</dt><dd>${o.wpa == null ? "—" : `${signed(100 * o.wpa, 1)} pp`}</dd></div>
-      <div><dt>Game result</dt><dd style="font-family:var(--font)">${o.won == null ? "Tie" : o.won ? `${esc(d.pos)} won` : `${esc(d.pos)} lost`}</dd></div></dl>
+      <div class="panel-head"><div><h2 class="sec">The call vs. the result</h2><div class="sec-sub">Two separate questions. Only the first one is graded.</div></div></div>
+      ${(() => { const cr = callResult(d); const on = (c, w) => (cr.call === c || (c === "wrong" && cr.call === "close")) && cr.worked === w ? "on" : "";
+        return `<div class="quad">
+          <div></div><div class="qh">Worked out</div><div class="qh">Didn't work out</div>
+          <div class="qh" style="writing-mode:vertical-rl;transform:rotate(180deg)">Model's pick</div>
+          <div class="qc ${on("right", true)}"><b>Right call, worked</b>Good process, good result.</div>
+          <div class="qc ${on("right", false)}"><b>Right call, bad result</b>Sound decision, unlucky outcome.</div>
+          <div class="qh" style="writing-mode:vertical-rl;transform:rotate(180deg)">Not the pick</div>
+          <div class="qc ${on("wrong", true)}"><b>Paid off anyway</b>Worked, but was the worse bet.</div>
+          <div class="qc ${on("wrong", false)}"><b>Wrong call, hurt</b>Worse bet, and it didn't work.</div>
+        </div>
+        <div class="plain" style="margin-top:12px"><span class="ic">${icon(cr.worked ? "check" : "x")}</span><div><b>${cr.title}.</b> ${cr.text}</div></div>`; })()}
+      <dl class="kv" style="margin-top:14px"><div><dt>Play result</dt><dd style="font-family:var(--font)">${outcome}</dd></div>
+      <div><dt>Vs. expected${help("rve")}</dt><dd>${o.rve == null ? "—" : `${signed(o.rve, 1)} pts`}</dd></div>
+      <div><dt>Final score</dt><dd>${esc(d.pos)} ${o.pos_final} – ${o.def_final} ${esc(d.def)}</dd></div>
+      <div><dt>Game result</dt><dd style="font-family:var(--font);color:${o.won == null ? "inherit" : o.won ? "var(--good)" : "var(--serious)"}">${o.won == null ? "Tie" : o.won ? `${esc(d.pos)} won` : `${esc(d.pos)} lost`}</dd></div></dl>
+      <p class="dim" style="font-size:12.5px;margin:12px 0 0">Did this decision decide the game? Rarely on its own: this play moved ${esc(d.pos)}'s win chance by ${o.wpa == null ? "—" : `${signed(100 * o.wpa, 1)} pts`}, and dozens of other plays happened. The final score is context, not a verdict.</p>
       <div class="desc-box" style="margin-top:14px">${esc(d.desc)}</div>
     </div>
     <div class="panel">
@@ -346,7 +362,7 @@ export async function decisionsList(params) {
 // ===================================================================
 const COLS = [
   ["name", "Team", null], ["decisions", "Decisions", "r"], ["go_rate", "Went for it", "r"], ["model_go_rate", "Model: go", "r"],
-  ["clear_go_rate", "Followed clear go", "r"], ["agree_rate", "Agreed w/ model", "r"], ["wp_cost_per_game", "WP cost / game", "r"], ["wp_cost", "Total WP cost", "r"],
+  ["clear_go_rate", "Followed clear go", "r"], ["agree_rate", "Agreed w/ model", "r"], ["wp_cost_per_game", "Win chance lost / game", "r"], ["wp_cost", "Total lost (pts)", "r"],
 ];
 
 function unitTable(rows, kind, params) {
@@ -366,7 +382,7 @@ function unitTable(rows, kind, params) {
     <td class="r mono">${pct(r.go_rate)}</td><td class="r mono dim">${pct(r.model_go_rate)}</td>
     <td class="r mono">${pct(r.clear_go_rate, 0)}<span class="dim"> (${r.clear_go})</span></td>
     <td class="r mono">${pct(r.agree_rate, 0)}</td>
-    <td class="r"><div style="display:flex;align-items:center;gap:10px;justify-content:flex-end" data-tip="${tip(r.name, [["WP cost / game", pp(r.wp_cost_per_game, 2)], ["90% interval", `${r.wp_cost_per_game_lo?.toFixed(2)} – ${r.wp_cost_per_game_hi?.toFixed(2)}`]])}">
+    <td class="r"><div style="display:flex;align-items:center;gap:10px;justify-content:flex-end" data-tip="${tip(r.name, [["Win chance lost / game", `${r.wp_cost_per_game.toFixed(2)} pts`], ["Range (90%)", `${r.wp_cost_per_game_lo?.toFixed(2)} – ${r.wp_cost_per_game_hi?.toFixed(2)}`]])}">
       <span class="mono">${r.wp_cost_per_game.toFixed(2)}</span>
       <div class="minibar" style="width:110px"><i style="left:${(100 * (r.wp_cost_per_game_lo || 0)) / maxCost}%;width:${(100 * ((r.wp_cost_per_game_hi || 0) - (r.wp_cost_per_game_lo || 0))) / maxCost}%;background:var(--accent);opacity:.35"></i><i style="left:calc(${(100 * r.wp_cost_per_game) / maxCost}% - 2px);width:4px;background:var(--accent)"></i></div></div></td>
     <td class="r mono">${r.wp_cost.toFixed(1)}</td></tr>`).join("")}
@@ -416,14 +432,14 @@ function unitReport(unit, decs, label, sub) {
   <div class="grid g-4">
     ${stat("Decisions", num(unit.decisions), `${unit.games} games · ${unit.clear} clear calls`)}
     ${stat("Went for it", pct(unit.go_rate), `Model recommended going: <b>${pct(unit.model_go_rate)}</b>`, `<div class="bar"><i style="width:${100 * unit.go_rate}%;background:var(--text)"></i><b style="left:${100 * unit.model_go_rate}%;background:var(--go)"></b></div>`)}
-    ${stat("Followed clear go calls", pct(unit.clear_go_rate, 0), `${unit.clear_go_went} of ${unit.clear_go}`)}
-    ${stat("WP cost / game", `${unit.wp_cost_per_game.toFixed(2)}<small>pp</small>`, `90% interval ${unit.wp_cost_per_game_lo?.toFixed(2)} – ${unit.wp_cost_per_game_hi?.toFixed(2)} · total ${unit.wp_cost.toFixed(1)} pp`)}
+    ${stat(`Followed clear go calls${help("clear")}`, pct(unit.clear_go_rate, 0), `${unit.clear_go_went} of ${unit.clear_go}`)}
+    ${stat(`Win chance lost / game${help("cost")}`, `${unit.wp_cost_per_game.toFixed(2)}<small>pts</small>`, `Range ${unit.wp_cost_per_game_lo?.toFixed(2)} – ${unit.wp_cost_per_game_hi?.toFixed(2)} · season total ${unit.wp_cost.toFixed(1)} pts`)}
   </div>
   <div class="grid g-main" style="margin-top:16px">
-    <div class="panel"><div class="panel-head"><div><h2 class="sec">WP cost by game</h2><div class="sec-sub">Model-estimated win probability forgone per game (pp) · click a bar to open the game</div></div></div>${bars}</div>
-    <div class="panel"><div class="panel-head"><div><h2 class="sec">Where the cost came from</h2><div class="sec-sub">Share of total WP cost by type of disagreement</div></div></div>
+    <div class="panel"><div class="panel-head"><div><h2 class="sec">Win chance lost, game by game</h2><div class="sec-sub">Pts of win chance given up on fourth downs in each game (model estimate) · click a bar to open the game</div></div></div>${bars}</div>
+    <div class="panel"><div class="panel-head"><div><h2 class="sec">Where the cost came from</h2><div class="sec-sub">What kind of disagreements with the model cost the most</div></div></div>
       <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;margin:6px 0 16px">${parts.map(([k, , c]) => `<i style="flex:${byErr(k) / total};background:${c}" data-tip="${tip(ERR[k], [["WP cost", pp(byErr(k), 2)]])}"></i>`).join("")}</div>
-      ${parts.map(([k, l, c]) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c};margin-right:8px"></i>${l}</span><span class="mono">${byErr(k).toFixed(2)} pp · ${decs.filter((d) => d.err === k).length}</span></div>`).join("")}
+      ${parts.map(([k, l, c]) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c};margin-right:8px"></i>${l}</span><span class="mono">${byErr(k).toFixed(1)} pts · ${decs.filter((d) => d.err === k).length} plays</span></div>`).join("")}
       <div class="dim" style="font-size:12.5px;margin-top:10px">Went for it when the model said kick: ${pct(unit.go_rate_when_kick_rec)} · Went when model said go: ${pct(unit.go_rate_when_go_rec)}</div>
     </div>
   </div>
@@ -448,9 +464,27 @@ export async function coach(name) {
   const v = view(summary);
   const c = v.coaches.find((x) => x.coach === name);
   if (!c) return notFound("Coach");
-  return unitReport(c, scoped(decisions).filter((d) => d.coach === name), name,
-    `Coach report · ${state.season} · ${c.teams.map((t) => `<a href="#/team/${t}">${t}</a>`).join(", ")}`);
+  const rk = summary.rankings.coaches.find((x) => x.coach === name);
+  const crit = [["right_worked", "Right call, worked"], ["right_failed", "Right call, bad result"], ["wrong_worked", "Paid off anyway"], ["wrong_failed", "Wrong call, hurt"]];
+  const banner = rk ? `<div class="panel hud" style="margin-bottom:16px"><div class="panel-head"><div><h2 class="sec">Decision Score${help("score")}</h2><div class="sec-sub">Fourth-down go-or-kick decisions only · <a class="panel-link" href="#/rankings">see all rankings</a></div></div>${tierChip(rk.tier)}</div>
+    <div class="grid g-4">
+      <div class="stat" style="padding:0"><div class="k">Score</div><div class="v">${pct(rk.score)}</div><div class="d">Range ${pct(rk.score_lo)} – ${pct(rk.score_hi)} · league ${pct(summary.rankings.league_score)}</div></div>
+      <div class="stat" style="padding:0"><div class="k">Rank${help("rankRange")}</div><div class="v">${rk.ranked ? `#${rk.rank}` : "—"}<small>of ${summary.rankings.coaches.filter((x) => x.ranked).length}</small></div><div class="d">${rk.ranked ? `Likely between #${rk.rank_lo} and #${rk.rank_hi}` : "Too few games to rank"}</div></div>
+      <div class="stat" style="padding:0"><div class="k">Critical calls right${help("critical")}</div><div class="v">${rk.critical_right}<small>/ ${rk.critical}</small></div><div class="d">Late &amp; close: ${rk.late_close_right} of ${rk.late_close}</div></div>
+      <div class="stat" style="padding:0"><div class="k">Results vs. expected${help("rve")}</div><div class="v" style="color:${rk.result_vs_exp >= 0 ? "var(--good)" : "var(--serious)"}">${signed(rk.result_vs_exp, 0)}<small>pts</small></div><div class="d">Plays turned out ${luckWord(rk.result_vs_exp)} (not part of the score)</div></div>
+    </div>
+    <div class="quad" style="margin-top:16px;grid-template-columns:repeat(4,minmax(0,1fr))">${crit.map(([k, l]) => `<div class="qc"><b>${l}</b><span class="n">${rk[k]}</span></div>`).join("")}</div>
+  </div>` : "";
+  return unitReportWithBanner(c, scoped(decisions).filter((d) => d.coach === name), name,
+    `Coach report · ${state.season} · ${c.teams.map((t) => `<a href="#/team/${t}">${t}</a>`).join(", ")}`, banner);
 }
+
+function unitReportWithBanner(unit, decs, label, sub, banner) {
+  const html = unitReport(unit, decs, label, sub);
+  const i = html.indexOf('<div class="grid g-4">');
+  return html.slice(0, i) + banner + html.slice(i);
+}
+
 
 // ===================================================================
 // What-if lab
@@ -569,6 +603,15 @@ export async function methodology() {
   </tbody></table>
   <p>Season totals of WP cost are sums of per-decision estimates. Dividing by 100 gives a loose “expected wins” reading, but win-probability changes within one game are not independent, so treat totals as an index, not a win count.</p>
 
+  <h2>Coach rankings</h2>
+  <table class="data"><tbody>
+    <tr><td><b>Decision Score</b></td><td><code>Σ stake × right / Σ stake</code> over competitive decisions, where <code>stake = |go − kick|</code> in pp and <code>right</code> = the coach chose the side (go vs. kick) the model preferred. Punt-vs-FG choices are not part of the score.</td></tr>
+    <tr><td><b>Range &amp; likely rank</b></td><td>Each coach's games are resampled with replacement (${summary.rankings.n_boot.toLocaleString()} draws, fixed seed). Every draw re-scores and re-ranks all coaches; we report the 5th–95th percentiles.</td></tr>
+    <tr><td><b>Tier</b></td><td>Above / below average only when the whole 90% range is above / below the league-wide score. Coaches with fewer than ${summary.rankings.min_games} games are not ranked.</td></tr>
+    <tr><td><b>Critical decision</b></td><td>Competitive and at least ${summary.rankings.critical_stake} pp at stake between going and the best kick.</td></tr>
+    <tr><td><b>Results vs. expected</b></td><td><code>100 × (spread-adjusted WP after the play − chosen_wp)</code>. Uses nflverse's <code>vegas_wp + vegas_wpa</code>, the scale nfl4th's values sit on (correlation 0.998 with nfl4th's best-option WP; mean residual +0.1 pp in 2025). Outcome only, never part of the score.</td></tr>
+  </tbody></table>
+
   <h2>What the model does and does not account for</h2>
   <ul>
     <li><b>Included</b> (from nfl4th source): down, distance, field position, score, time, timeouts, the pre-game spread and total line (a team-strength proxy), era, roof type for field goals, and late/desperation situations.</li>
@@ -589,4 +632,176 @@ export async function methodology() {
 
 export function notFound(what) {
   return `<div class="empty-state"><h2>${what} not found</h2><p>It may belong to another season, or the filter excludes it. <a class="panel-link" href="#/">Back to overview</a></p></div>`;
+}
+
+// ===================================================================
+// Coach rankings
+// ===================================================================
+function tierChip(t) {
+  const cls = { "Above average": "above", "Below average": "below", "Average range": "avg" }[t] || "nr";
+  const ic = cls === "above" ? icon("check") : cls === "below" ? icon("alert") : "";
+  return `<span class="tierchip ${cls}">${ic}${esc(t)}</span>`;
+}
+
+function scoreBar(r, league, lo = 0.6, hi = 1) {
+  const x = (v) => `${((100 * (Math.min(hi, Math.max(lo, v)) - lo)) / (hi - lo)).toFixed(1)}%`;
+  return `<div class="scorebar" data-tip="${tip(r.coach, [["Decision Score", pct(r.score)], ["Range (90%)", `${pct(r.score_lo)} – ${pct(r.score_hi)}`], ["League average", pct(league)]])}">
+    <div class="track"></div><div class="avg" style="left:${x(league)}"></div>
+    <div class="rng" style="left:${x(r.score_lo)};width:calc(${x(r.score_hi)} - ${x(r.score_lo)})"></div>
+    <div class="pt" style="left:${x(r.score)}"></div></div>`;
+}
+
+function luckWord(v) {
+  if (v > 1) return "better than expected";
+  if (v < -1) return "worse than expected";
+  return "about as expected";
+}
+
+function luckScatter(rows, league, { width = 900, height = 420 } = {}) {
+  width = Math.max(340, Math.min(width, window.innerWidth - 70));
+  const pad = { l: 56, r: 20, t: 24, b: 44 };
+  const xs = rows.map((r) => r.score), ys = rows.map((r) => r.result_vs_exp_per_game);
+  const x0 = Math.min(...xs, league) - 0.02, x1 = Math.max(...xs, league) + 0.02;
+  const yAbs = Math.max(...ys.map(Math.abs)) * 1.15;
+  const sx = (v) => pad.l + ((v - x0) / (x1 - x0)) * (width - pad.l - pad.r);
+  const sy = (v) => pad.t + ((yAbs - v) / (2 * yAbs)) * (height - pad.t - pad.b);
+  let s = `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Decision Score versus results">`;
+  s += `<line class="zero" x1="${pad.l}" x2="${width - pad.r}" y1="${sy(0)}" y2="${sy(0)}"/><line class="zero" x1="${sx(league)}" x2="${sx(league)}" y1="${pad.t}" y2="${height - pad.b}"/>`;
+  const q = (x, y, a, t) => `<text class="lbl" x="${x}" y="${y}" text-anchor="${a}" style="fill:var(--text-3)">${t}</text>`;
+  s += q(width - pad.r - 4, pad.t + 12, "end", "Good calls · good breaks") + q(pad.l + 4, pad.t + 12, "start", "Questionable calls · good breaks");
+  s += q(width - pad.r - 4, height - pad.b - 8, "end", "Good calls · bad breaks") + q(pad.l + 4, height - pad.b - 8, "start", "Questionable calls · bad breaks");
+  for (const t of [-1, -0.5, 0, 0.5, 1].map((f) => f * Math.floor(yAbs))) s += `<text x="${pad.l - 8}" y="${sy(t) + 4}" text-anchor="end">${t > 0 ? "+" : ""}${t}</text>`;
+  for (let v = Math.ceil(x0 * 20) / 20; v <= x1; v += 0.05) s += `<text x="${sx(v)}" y="${height - pad.b + 16}" text-anchor="middle">${Math.round(v * 100)}%</text>`;
+  s += `<text class="lbl" x="${(pad.l + width - pad.r) / 2}" y="${height - 6}" text-anchor="middle">Decision Score →</text>`;
+  s += `<text class="lbl" transform="translate(14 ${(pad.t + height - pad.b) / 2}) rotate(-90)" text-anchor="middle">Results vs. expected (pts/game)</text>`;
+  const ext = new Set([...rows].sort((a, b) => b.score - a.score).filter((_, i, arr) => i < 3 || i >= arr.length - 3).map((r) => r.coach)
+    .concat([...rows].sort((a, b) => b.result_vs_exp_per_game - a.result_vs_exp_per_game).filter((_, i, arr) => i < 2 || i >= arr.length - 2).map((r) => r.coach)));
+  for (const r of rows) {
+    const x = sx(r.score), y = sy(r.result_vs_exp_per_game);
+    s += `<a href="#/coach/${encodeURIComponent(r.coach)}"><g data-tip="${tip(r.coach, [["Decision Score", pct(r.score)], ["Rank", `#${r.rank}`], ["Results vs. expected", `${signed(r.result_vs_exp_per_game, 1)} pts/game`]])}">
+      <circle class="hit" cx="${x}" cy="${y}" r="12"/><circle cx="${x}" cy="${y}" r="5.5" fill="var(--accent)" stroke="var(--panel-solid)" stroke-width="2"/>
+      ${ext.has(r.coach) ? `<text class="lbl" x="${x + 9}" y="${y + 4}">${esc(r.coach.split(" ").slice(-1)[0])}</text>` : ""}</g></a>`;
+  }
+  return s + "</svg>";
+}
+
+export async function rankings() {
+  const { summary } = await seasonData();
+  const R = summary.rankings;
+  const meta = seasonMeta();
+  const live = meta.status !== "final";
+  const ranked = R.coaches.filter((r) => r.ranked);
+  const counts = (t) => ranked.filter((r) => r.tier === t).length;
+  const above = ranked.filter((r) => r.tier === "Above average"), below = ranked.filter((r) => r.tier === "Below average");
+  const lucky = [...ranked].sort((a, b) => b.result_vs_exp - a.result_vs_exp)[0];
+  const unlucky = [...ranked].sort((a, b) => a.result_vs_exp - b.result_vs_exp)[0];
+  const names = (rs) => rs.map((r) => `<a class="panel-link" href="#/coach/${encodeURIComponent(r.coach)}">${esc(r.coach)}</a>`).join(", ");
+
+  return `${head(`${meta.season} season · ${live ? `mid-season, through week ${meta.through_week}` : "full season"}`,
+    `Coach <span class="grad">fourth-down decision</span> rankings`,
+    `Who makes the best go-or-kick calls when it matters? This ranks one slice of coaching, fourth-down decisions, against a widely used public model${help("model")}. It says nothing about play-calling, player development or anything else a head coach does.`)}
+
+  ${live ? `<div class="callout warn" style="margin-bottom:16px"><b>Mid-season numbers.</b> With about ${Math.round(ranked.reduce((s, r) => s + r.games, 0) / ranked.length)} games per coach, ranges are wide and the order will move. Switch to <b>2025</b> in the top bar for a full season.</div>` : ""}
+
+  <div class="panel hud" style="margin-bottom:16px">
+    <div class="panel-head"><h2 class="sec">How the Decision Score works</h2><span class="dim" style="font-size:12.5px">League average: <b class="mono" style="color:var(--text)">${pct(R.league_score)}</b></span></div>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>The model weighs the options</h3><p>On every fourth down it estimates the team's win chance${help("winChance")} if they go for it and if they kick, using only what was known before the snap.</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>We check the coach's call</h3><p>Did the coach pick the side the model preferred, go or kick? Fake punts count as going for it.</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>Bigger moments count more</h3><p>A call worth 10 pts of win chance counts ten times as much as a call worth 1 pt. Blowouts are left out. Score = share of the stakes they got right.${help("score")}</p></div></div>
+    </div>
+  </div>
+
+  <div class="insights" style="margin-bottom:16px">
+    <div class="panel insight"><div class="ic">${icon("check")}</div><div><h3>Clearly above average (${counts("Above average")})</h3><p>${above.length ? names(above) : "Nobody separates from the pack yet."} Their whole range sits above the league average.${help("tier")}</p></div></div>
+    <div class="panel insight"><div class="ic">${icon("alert")}</div><div><h3>Clearly below average (${counts("Below average")})</h3><p>${below.length ? names(below) : "Nobody separates from the pack yet."} Their whole range sits below the league average.</p></div></div>
+    <div class="panel insight"><div class="ic">${icon("dice")}</div><div><h3>Luck is a separate story</h3><p>${esc(lucky.coach)}'s fourth-down plays turned out ${signed(lucky.result_vs_exp, 0)} pts better than expected over the season; ${esc(unlucky.coach)}'s turned out ${signed(unlucky.result_vs_exp, 0)} pts. Results${help("rve")} are shown but never counted in the score.</p></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><div><h2 class="sec">The ranking</h2><div class="sec-sub">${counts("Average range")} of ${ranked.length} coaches are in the average range: their order there is close to a coin flip. Click a coach for their full report.</div></div></div>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th class="r"># <span style="text-transform:none;letter-spacing:0">(likely)</span>${help("rankRange")}</th><th>Coach</th><th style="min-width:230px">Decision Score${help("score")} &amp; range${help("range")}</th><th>Tier${help("tier")}</th><th class="r">Critical calls right${help("critical")}</th><th class="r">Late &amp; close</th><th class="r">Luck${help("rve")}</th></tr></thead>
+      <tbody>${R.coaches.map((r) => `<tr class="rowlink" data-go="#/coach/${encodeURIComponent(r.coach)}">
+        <td class="r"><span class="rank-num">${r.ranked ? r.rank : "–"}</span>${r.ranked ? `<div class="dim mono" style="font-size:10.5px;white-space:nowrap" data-tip="${tip("Likely rank", [["90% of replays", `#${r.rank_lo} to #${r.rank_hi}`]])}">#${r.rank_lo}–${r.rank_hi}</div>` : ""}</td>
+        <td><div class="team-cell">${tbadge(r.teams[r.teams.length - 1])}<div><div style="font-weight:600;white-space:nowrap">${esc(r.coach)}</div><div class="dim" style="font-size:12px">${r.teams.join(", ")} · ${r.games} games</div></div></div></td>
+        <td><div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:16px;font-weight:600;width:56px">${pct(r.score)}</span><div style="flex:1">${scoreBar(r, R.league_score)}</div></div></td>
+        <td>${tierChip(r.tier)}</td>
+        <td class="r mono">${r.critical_right}/${r.critical} <span class="dim">(${pct(r.critical_right / r.critical, 0)})</span></td>
+        <td class="r mono" data-tip="${tip("Late & close", [["Situation", "4th quarter or overtime, one-score game, critical decisions"], ["Right calls", `${r.late_close_right} of ${r.late_close}`]])}">${r.late_close ? `${r.late_close_right}/${r.late_close}` : "—"}</td>
+        <td class="r mono" style="color:${r.result_vs_exp > 0 ? "var(--good)" : r.result_vs_exp < 0 ? "var(--serious)" : "inherit"}">${signed(r.result_vs_exp, 0)}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <div class="legend" style="margin-top:12px"><span><i class="dot" style="background:var(--accent)"></i>Decision Score</span><span><i style="background:var(--accent);opacity:.35;height:8px;width:18px;border-radius:4px"></i>90% range</span><span><i style="border-left:1px dashed var(--text-3);height:12px;width:1px;background:none"></i>League average</span></div>
+  </div>
+
+  <div class="grid g-main" style="margin-top:16px">
+    <div class="panel"><div class="panel-head"><div><h2 class="sec">Good decisions vs. good luck</h2><div class="sec-sub">Right = better decisions. Up = fourth-down plays turned out better than the model expected (execution and luck).</div></div></div>${luckScatter(ranked, R.league_score)}</div>
+    <div class="panel"><div class="panel-head"><h2 class="sec">What this ranking does and doesn't say</h2></div>
+      <ul style="margin:0;padding-left:18px;color:var(--text-2);font-size:13.5px;display:grid;gap:8px">
+        <li><b>It measures:</b> how often a coach's go-or-kick call matched the model, weighted by how much win chance was on the line.</li>
+        <li><b>It doesn't measure:</b> play-calling, clock management, two-point tries, or whether the play worked.</li>
+        <li><b>The model isn't perfect.</b> It doesn't know about injuries, matchups, weather or the specific kicker. A coach can have good reasons to disagree.</li>
+        <li><b>Results are luck plus execution.</b> A coach with good calls can still lose; a coach with risky calls can still win. That's why results stay out of the score.</li>
+        <li><b>Only big gaps are real.</b> The tiers tell you which differences hold up statistically; the exact order inside the average range does not.</li>
+      </ul>
+      <a class="btn" style="margin-top:14px" href="#/guide">${icon("info")}New to this? Read the guide</a>
+    </div>
+  </div>`;
+}
+
+// ===================================================================
+// Start-here guide
+// ===================================================================
+export async function guide() {
+  const { decisions } = await seasonData();
+  const crit = decisions.filter((d) => d.critical);
+  const cell = (right, worked) => crit.filter((d) => d.right === right && d.out.worked === worked).length;
+  const ex = decisions.find((d) => d.id === "2025_18_CLE_CIN_3455") || [...decisions].sort((a, b) => b.cost - a.cost)[0];
+  const optCard = (o, title, text) => `<div class="option-card ${o}"><span class="opt ${o}">${OPT_SHORT[o]}</span><h3 style="margin:8px 0 4px;font-size:15px">${title}</h3><p style="margin:0;color:var(--text-2);font-size:13.5px">${text}</p></div>`;
+
+  return `<div class="doc" style="max-width:1000px">${head("Start here", "How to read this site in 3 minutes", "No analytics background needed. Here's what fourth down is, how we judge decisions, and how to read every number on the site.")}
+
+  <h2>1. Fourth down: the big decision</h2>
+  <p>A team gets four tries (downs) to move the ball 10 yards. On the last try, fourth down, the coach has three choices:</p>
+  <div class="options-explain">
+    ${optCard("go", "Go for it", "Run a normal play. Make it and you keep the ball. Miss and the other team gets it right there.")}
+    ${optCard("punt", "Punt", "Kick the ball away so the other team starts far from your end zone. Safe, but you give up the ball.")}
+    ${optCard("fg", "Field goal", "If you're close enough, kick for 3 points. Long kicks often miss.")}
+  </div>
+
+  <h2>2. “Win chance”${help("winChance")}</h2>
+  <p>Based on thousands of past games, a model can estimate how often a team in a given situation goes on to win: the score, time left, field position, yards needed and more. If teams in a spot win 70% of the time, that's a <b>70% win chance</b>. We use <a class="panel-link" href="https://github.com/nflverse/nfl4th" target="_blank" rel="noopener">nfl4th</a>, a widely used public model.</p>
+
+  <h2>3. How we judge a decision</h2>
+  <p>For each fourth down, the model estimates the win chance for <i>each</i> option. The best decision is the one with the highest win chance. If a coach picks something else, the gap is the <b>win chance given up</b>${help("cost")}, measured in points${help("pts")}.</p>
+  ${ex ? `<div class="plain" style="margin:12px 0"><span class="ic">${icon("info")}</span><div><b>Example:</b> ${esc(plainEnglish(ex))} <a class="panel-link" href="#/decision/${ex.id}">See this decision →</a></div></div>` : ""}
+  <p>We only use what was known <b>before the snap</b>. Whether the play worked doesn't change the grade.</p>
+
+  <h2>4. A good decision can still fail</h2>
+  <p>Football has a lot of luck in it. So we look at two separate questions: <b>was it the right call?</b> and <b>did it work out?</b> Here's how ${state.season}'s ${num(crit.length)} critical fourth-down decisions${help("critical")} split:</p>
+  <div class="quad" style="margin:14px 0">
+    <div></div><div class="qh">It worked out</div><div class="qh">It didn't work out</div>
+    <div class="qh" style="writing-mode:vertical-rl;transform:rotate(180deg)">Right call</div>
+    <div class="qc"><b>Right call, worked</b><span class="n">${num(cell(true, true))}</span><br>Good process, good result.</div>
+    <div class="qc"><b>Right call, bad result</b><span class="n">${num(cell(true, false))}</span><br>Not the coach's fault. Don't judge these by the scoreboard.</div>
+    <div class="qh" style="writing-mode:vertical-rl;transform:rotate(180deg)">Not the model's pick</div>
+    <div class="qc"><b>Risky call that paid off</b><span class="n">${num(cell(false, true))}</span><br>Looked smart afterward, but it was still a worse bet.</div>
+    <div class="qc"><b>Wrong call, and it hurt</b><span class="n">${num(cell(false, false))}</span><br>The model preferred the other option, and this one didn't work out.</div>
+  </div>
+  <p>"Worked out" means the team's win chance after the play ended up at least as high as the model expected for the option they chose.</p>
+
+  <h2>5. Clear calls vs. toss-ups${help("clear")}</h2>
+  <p>Some decisions are obvious; others are coin flips. The model's estimates come with a range of uncertainty. When the whole range favors one option, we call it a <b>clear call</b>. When it doesn't, it's a <b>toss-up</b>, and disagreeing with the model there is no big deal.</p>
+
+  <h2>6. Where to go next</h2>
+  <div class="grid g-3">
+    <a class="panel" href="#/rankings"><h3 style="margin:0 0 4px">${icon("trophy", 'width="16" height="16"')} Coach rankings</h3><p class="dim" style="margin:0">Who makes the best fourth-down calls, with honest uncertainty.</p></a>
+    <a class="panel" href="#/games"><h3 style="margin:0 0 4px">${icon("games", 'width="16" height="16"')} Games</h3><p class="dim" style="margin:0">Pick any game and walk through its fourth downs.</p></a>
+    <a class="panel" href="#/lab"><h3 style="margin:0 0 4px">${icon("lab", 'width="16" height="16"')} What-if lab</h3><p class="dim" style="margin:0">Change a coach's decision and see how the odds move.</p></a>
+  </div>
+
+  <h2>Glossary</h2>
+  <p>Look for the <span class="help" style="cursor:default">?</span> icons around the site. Hover or tap them for these definitions.</p>
+  <div class="glossary">${Object.values(GLOSSARY).map(([t, d]) => `<div><b>${esc(t)}</b>${esc(d)}</div>`).join("")}</div>
+  </div>`;
 }
