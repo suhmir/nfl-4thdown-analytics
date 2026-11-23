@@ -74,6 +74,7 @@ def _decision_record(r) -> dict:
         "boot_pct": r["boot_pct"], "boot_go_pct": r["boot_go_pct"],
         "tier": r["tier"], "err": r["error_type"], "comp": bool(r["competitive"]),
         "stake": r["stake"], "right": bool(r["right_call"]), "critical": bool(r["critical"]),
+        "sev": r["severity"], "dir": r["direction"],
         "flags": flags, "prior": int(r["prior_snaps"]), "desc": r["desc"],
         "out": {
             "conv": None if pd.isna(r["fourth_down_converted"]) or r["choice"] != "go" else int(r["fourth_down_converted"]),
@@ -105,16 +106,33 @@ def _view(d: pd.DataFrame) -> dict:
 
 
 def _rankings(d: pd.DataFrame) -> dict:
-    rows, league = R.coach_rankings(d)
     c = d[d["competitive"]]
+    by_tol = {}
+    for t in R.TOLERANCES:
+        rows, league = R.coach_rankings(d, t)
+        judged = c[c["stake"] >= t]
+        by_tol[f"{t:g}"] = {
+            "coaches": rows, "league_score": league,
+            "judged": int(len(judged)),
+            "judged_per_coach": float(judged.groupby("coach").size().median()),
+        }
+    style, style_meta = R.coach_style(d)
+    sev = c[c["severity"].isin(["slight", "clear", "big"])]
     return {
-        "coaches": rows,
-        "league_score": league,
+        "tolerances": [f"{t:g}" for t in R.TOLERANCES],
+        "default": f"{R.DEFAULT_TOLERANCE:g}",
+        "by_tol": by_tol,
+        "style": style, "style_meta": style_meta,
+        "severity_summary": [
+            {"severity": k, "direction": dn, "n": int(len(g)), "pts": float(g["wp_cost"].sum())}
+            for (k, dn), g in sev.groupby(["severity", "direction"])
+        ],
+        "coin_flips": int((c["severity"] == "coin_flip").sum()),
+        "matches": int((c["severity"] == "match").sum()),
+        "competitive": int(len(c)),
         "critical": int(c["critical"].sum()),
-        "critical_right_rate": float(c.loc[c["critical"], "right_call"].mean()),
-        "min_games": R.MIN_GAMES,
-        "critical_stake": R.CRITICAL_STAKE,
-        "n_boot": R.N_BOOT,
+        "min_games": R.MIN_GAMES, "min_decisions": R.MIN_DECISIONS, "min_chances": R.MIN_CHANCES,
+        "critical_stake": R.CRITICAL_STAKE, "n_boot": R.N_BOOT, "coin_flip": M.COIN_FLIP,
     }
 
 

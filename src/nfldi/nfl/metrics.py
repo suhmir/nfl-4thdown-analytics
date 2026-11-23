@@ -19,6 +19,12 @@ import pandas as pd
 
 OPTION_COLS = {"go": "go_wp", "punt": "punt_wp", "fg": "fg_wp"}
 
+# Severity scale for disagreements, by win chance given up (pp).
+# Below COIN_FLIP (or when nfl4th's own interval spans zero) a call is treated
+# as a coin flip: either choice is fine.
+COIN_FLIP = 1.0
+SEVERITY_BANDS = [(COIN_FLIP, "slight"), (2.5, "clear"), (5.0, "big")]
+
 # A decision is "competitive" when the best available option leaves the game
 # genuinely in doubt. Used for a sensitivity cut, not to drop data.
 COMPETITIVE_RANGE = (0.02, 0.98)
@@ -44,6 +50,17 @@ def add_metrics(decisions: pd.DataFrame) -> pd.DataFrame:
         [d["model_go"] & ~d["went"], ~d["model_go"] & d["went"], ~d["agrees"]],
         ["too_conservative", "too_aggressive", "wrong_kick"],
         default="",
+    )
+    # severity: match | coin_flip | slight | clear | big  (+ direction)
+    sev = np.select(
+        [d["wp_cost"] < 0.05, (d["wp_cost"] < COIN_FLIP) | (d["tier"] == "toss_up"),
+         d["wp_cost"] < 2.5, d["wp_cost"] < 5.0],
+        ["match", "coin_flip", "slight", "clear"], default="big",
+    )
+    d["severity"] = sev
+    d["direction"] = np.select(
+        [d["error_type"] == "too_conservative", d["error_type"] == "too_aggressive", d["error_type"] == "wrong_kick"],
+        ["conservative", "aggressive", "kick_choice"], default="",
     )
     lo, hi = COMPETITIVE_RANGE
     d["competitive"] = d["best_wp"].between(lo, hi)

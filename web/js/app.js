@@ -94,7 +94,7 @@ async function render() {
     const routes = {
       overview: () => V.overview(), games: () => V.games(params), game: () => V.game(arg), decision: () => V.decision(arg),
       decisions: () => V.decisionsList(params), teams: () => V.teams(params), team: () => V.team(arg),
-      coaches: () => V.coaches(params), coach: () => V.coach(arg), rankings: () => V.rankings(), guide: () => V.guide(), lab: () => V.lab(arg, params), methodology: () => V.methodology(),
+      coaches: () => V.coaches(params), coach: () => V.coach(arg), rankings: () => V.rankings(params), guide: () => V.guide(), lab: () => V.lab(arg, params), methodology: () => V.methodology(),
     };
     html = await (routes[section] || (() => V.notFound("Page")))();
   } catch (e) {

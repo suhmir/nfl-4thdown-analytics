@@ -1,7 +1,7 @@
 import { state, seasonData, scoped, view, gameWP, seasonMeta, router } from "./data.js";
 import {
   esc, pct, pp, signed, num, clock, qlabel, fieldPos, downDist, scoreText, weekLabel, weekShort,
-  teamName, icon, tip, verdictHtml, smallSample, OPT, OPT_SHORT, TIER, ERR, SMALL_N, TEAMS,
+  teamName, icon, tip, verdictHtml, smallSample, OPT, OPT_SHORT, TIER, ERR, SMALL_N, TEAMS, SEV_BANDS, sevLabel,
   GLOSSARY, help, plainEnglish, callResult,
 } from "./util.js";
 import { rankChart, dumbbell, lineChart, heatmap, wpChart, fieldGraphic, intervalBar } from "./charts.js";
@@ -55,7 +55,6 @@ export async function overview() {
   const L = v.league;
   const meta = seasonMeta();
   const live = meta.status !== "final";
-  const consShare = (L.cost_by_error.too_conservative || 0) / L.wp_cost;
 
   const cells = v.grid_field_ytg.filter((c) => c.n >= 30).sort((a, b) => a.gap - b.gap);
   const worst = cells[0];
@@ -89,7 +88,8 @@ export async function overview() {
   </div>
 
   <div class="insights" style="margin-top:16px">
-    <div class="panel insight"><div class="ic">${icon("scale")}</div><div><h3>Caution costs more than aggression</h3><p>${pct(consShare, 0)} of the estimated win probability forgone came from kicking when the model favoured going (${num(L.count_by_error.too_conservative || 0)} decisions), versus ${num(L.count_by_error.too_aggressive || 0)} decisions where teams went for it against the model.</p></div></div>
+    ${(() => { const ss = summary.rankings.severity_summary, pts = (k) => ss.filter((x) => x.severity === k).reduce((a, x) => a + x.pts, 0), n = (k) => ss.filter((x) => x.severity === k).reduce((a, x) => a + x.n, 0), tot = pts("slight") + pts("clear") + pts("big");
+      return `<div class="panel insight"><div class="ic">${icon("scale")}</div><div><h3>Few blunders, many small edges</h3><p>Ignoring coin flips${help("severity")}, ${pct((pts("slight") + pts("clear")) / tot, 0)} of the win chance teams gave up came from slight or clear gaps (1–5 pts). Teams ignored a big (5+ pt) edge only ${n("big")} times all season, and almost never went for it when they shouldn't have.</p></div></div>`; })()}
     ${worst ? `<div class="panel insight"><div class="ic">${icon("bolt")}</div><div><h3>Most-missed spot: 4th &amp; ${esc(worst.col)}, ${esc(worst.row)}</h3><p>Teams went for it ${pct(worst.go_rate, 0)} of the time; the model favoured going ${pct(worst.model_go_rate, 0)} of the time (n = ${worst.n}).</p></div></div>` : ""}
     ${q4 ? `<div class="panel insight"><div class="ic">${icon("clock")}</div><div><h3>${q4.model_go_rate - q4.go_rate < L.model_go_rate - L.go_rate ? "Late-game urgency narrows the gap" : "The gap persists late in games"}</h3><p>In the final 5 minutes of the 4th quarter teams went for it ${pct(q4.go_rate, 0)} vs. the model's ${pct(q4.model_go_rate, 0)}, compared with ${pct(L.go_rate, 0)} vs. ${pct(L.model_go_rate, 0)} overall. Average estimated cost per decision there: ${pp(q4.mean_cost, 2)} (${q4.mean_cost > L.wp_cost / L.decisions ? "above" : "below"} the ${pp(L.wp_cost / L.decisions, 2)} season average; n = ${q4.n}).</p></div></div>` : ""}
   </div>
@@ -259,6 +259,9 @@ export async function decision(id) {
         <div class="delta-big ${d.cost >= 0.05 ? "neg" : "pos"}">${d.cost >= 0.05 ? `−${d.cost.toFixed(2)}` : "0.00"}</div><div class="muted">pts of win chance given up vs. the model's best option${help("cost")}</div>
       </div>
       <div style="display:flex;gap:16px;margin:10px 0 4px;flex-wrap:wrap"><span class="muted">Chose ${optTag(d.choice)}</span><span class="muted">Model ${optTag(d.best)}</span></div>
+      <div style="margin-top:14px;font-weight:600;font-size:13px">How big was the gap?${help("severity")} <span style="margin-left:6px">${verdictHtml(d)}</span></div>
+      ${(() => { const u = d.cost < 5 ? d.cost : 5 + 3 * Math.min(1, (d.cost - 5) / 7); return `<div class="sevscale"><div class="bands"><i class="b-coin"></i><i class="b-slight"></i><i class="b-clear"></i><i class="b-big"></i></div><div class="mark" style="left:${(100 * u) / 8}%"></div>
+        <div class="labels">${SEV_BANDS.map((b) => `<span data-tip="${tip(b.name, [["Range", b.key === "big" ? "5+ pts" : `${b.from}–${b.to} pts`]])}"><b>${b.name}</b>${b.key === "big" ? "5+" : `${b.from}–${b.to}`}</span>`).join("")}</div></div>`; })()}
       <div style="margin-top:12px">${d.gb_lo != null ? intervalBar(d) : ""}</div>
       <div class="sec-sub" style="margin-top:4px">Go vs. kick${help("goKick")}: dot = model's estimate, bar = its uncertainty range${help("clear")}</div>
     </div>
@@ -315,7 +318,7 @@ export async function decisionsList(params) {
   const ytgOf = (y) => (y <= 1 ? "1" : y <= 2 ? "2" : y <= 3 ? "3" : y <= 5 ? "4-5" : y <= 7 ? "6-7" : y <= 10 ? "8-10" : "11+");
   let rows = scoped(decisions).filter((d) =>
     (!f.team || d.pos === f.team) && (!f.choice || d.choice === f.choice) && (!f.best || d.best === f.best) &&
-    (!f.tier || d.tier === f.tier) && (!f.err || (f.err === "agree" ? !d.err : d.err === f.err)) &&
+    (!f.tier || d.tier === f.tier) && (!f.sev || d.sev === f.sev) && (!f.dir || d.dir === f.dir) &&
     (!f.qtr || (f.qtr === "5" ? d.qtr >= 5 : d.qtr === Number(f.qtr))) &&
     (!f.zone || zoneOf(d.yl) === f.zone) && (!f.ytg || ytgOf(d.ytg) === f.ytg));
   const sort = f.sort || "cost";
@@ -336,7 +339,8 @@ export async function decisionsList(params) {
     ${sel("choice", [["go", "Went for it"], ["punt", "Punted"], ["fg", "Field goal"]], "Any choice")}
     ${sel("best", [["go", "Model: go"], ["punt", "Model: punt"], ["fg", "Model: FG"]], "Any model call")}
     ${sel("tier", [["clear_go", "Clear go"], ["clear_kick", "Clear kick"], ["toss_up", "Toss-up"]], "Any tier")}
-    ${sel("err", [["agree", "Matches model"], ["too_conservative", "Too conservative"], ["too_aggressive", "Too aggressive"], ["wrong_kick", "Wrong kick"]], "Any verdict")}
+    ${sel("sev", [["match", "Matches model"], ["coin_flip", "Coin flip"], ["slight", "Slight gap (1–2.5)"], ["clear", "Clear gap (2.5–5)"], ["big", "Big gap (5+)"]], "Any gap size")}
+    ${sel("dir", [["conservative", "Kicked when go was better"], ["aggressive", "Went when kick was better"], ["kick_choice", "Weaker kick"]], "Any direction")}
     ${sel("qtr", [["1", "Q1"], ["2", "Q2"], ["3", "Q3"], ["4", "Q4"], ["5", "OT"]], "Any quarter")}
     ${sel("zone", FIELD_ZONES.map((z) => [z, z]), "Any field zone")}
     ${sel("ytg", YTG.map((y) => [y, `4th & ${y}`]), "Any distance")}
@@ -464,16 +468,23 @@ export async function coach(name) {
   const v = view(summary);
   const c = v.coaches.find((x) => x.coach === name);
   if (!c) return notFound("Coach");
-  const rk = summary.rankings.coaches.find((x) => x.coach === name);
+  const RKd = summary.rankings.by_tol[summary.rankings.default];
+  const rk = RKd.coaches.find((x) => x.coach === name);
+  const sty = summary.rankings.style.find((x) => x.coach === name);
+  const smeta = summary.rankings.style_meta;
   const crit = [["right_worked", "Right call, worked"], ["right_failed", "Right call, bad result"], ["wrong_worked", "Paid off anyway"], ["wrong_failed", "Wrong call, hurt"]];
   const banner = rk ? `<div class="panel hud" style="margin-bottom:16px"><div class="panel-head"><div><h2 class="sec">Decision Score${help("score")}</h2><div class="sec-sub">Fourth-down go-or-kick decisions only · <a class="panel-link" href="#/rankings">see all rankings</a></div></div>${tierChip(rk.tier)}</div>
     <div class="grid g-4">
-      <div class="stat" style="padding:0"><div class="k">Score</div><div class="v">${pct(rk.score)}</div><div class="d">Range ${pct(rk.score_lo)} – ${pct(rk.score_hi)} · league ${pct(summary.rankings.league_score)}</div></div>
-      <div class="stat" style="padding:0"><div class="k">Rank${help("rankRange")}</div><div class="v">${rk.ranked ? `#${rk.rank}` : "—"}<small>of ${summary.rankings.coaches.filter((x) => x.ranked).length}</small></div><div class="d">${rk.ranked ? `Likely between #${rk.rank_lo} and #${rk.rank_hi}` : "Too few games to rank"}</div></div>
+      <div class="stat" style="padding:0"><div class="k">Score</div><div class="v">${pct(rk.score)}</div><div class="d">Range ${pct(rk.score_lo)} – ${pct(rk.score_hi)} · league ${pct(RKd.league_score)}</div></div>
+      <div class="stat" style="padding:0"><div class="k">Rank${help("rankRange")}</div><div class="v">${rk.ranked ? `#${rk.rank}` : "—"}<small>of ${RKd.coaches.filter((x) => x.ranked).length}</small></div><div class="d">${rk.ranked ? `Likely between #${rk.rank_lo} and #${rk.rank_hi}` : "Too few games to rank"}</div></div>
       <div class="stat" style="padding:0"><div class="k">Critical calls right${help("critical")}</div><div class="v">${rk.critical_right}<small>/ ${rk.critical}</small></div><div class="d">Late &amp; close: ${rk.late_close_right} of ${rk.late_close}</div></div>
       <div class="stat" style="padding:0"><div class="k">Results vs. expected${help("rve")}</div><div class="v" style="color:${rk.result_vs_exp >= 0 ? "var(--good)" : "var(--serious)"}">${signed(rk.result_vs_exp, 0)}<small>pts</small></div><div class="d">Plays turned out ${luckWord(rk.result_vs_exp)} (not part of the score)</div></div>
     </div>
     <div class="quad" style="margin-top:16px;grid-template-columns:repeat(4,minmax(0,1fr))">${crit.map(([k, l]) => `<div class="qc"><b>${l}</b><span class="n">${rk[k]}</span></div>`).join("")}</div>
+    ${sty ? `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)">
+      <span style="font-weight:600">Aggressiveness${help("aggressiveness")}</span>${styleChip(sty.style)}
+      <span class="muted">Took <b class="mono" style="color:var(--text)">${sty.took} of ${sty.go_chances}</b> clear go chances (league ${pct(smeta.league_take_rate, 0)})${sty.aggr_rank ? ` · #${sty.aggr_rank} most aggressive` : ""}</span>
+      <span class="muted" style="display:flex;align-items:center;gap:8px">Passed-up chances: ${missBar(sty)}</span></div>` : ""}
   </div>` : "";
   return unitReportWithBanner(c, scoped(decisions).filter((d) => d.coach === name), name,
     `Coach report · ${state.season} · ${c.teams.map((t) => `<a href="#/team/${t}">${t}</a>`).join(", ")}`, banner);
@@ -612,6 +623,11 @@ export async function methodology() {
     <tr><td><b>Results vs. expected</b></td><td><code>100 × (spread-adjusted WP after the play − chosen_wp)</code>. Uses nflverse's <code>vegas_wp + vegas_wpa</code>, the scale nfl4th's values sit on (correlation 0.998 with nfl4th's best-option WP; mean residual +0.1 pp in 2025). Outcome only, never part of the score.</td></tr>
   </tbody></table>
 
+  <h3>Gap size and forgiveness</h3>
+  <p>Each disagreement is banded by win chance given up: <b>coin flip</b> (under ${summary.rankings.coin_flip} pt, or nfl4th's own interval spans zero), <b>slight</b> (1–2.5), <b>clear</b> (2.5–5), <b>big</b> (5+), with a direction (conservative, aggressive, or weaker kick). The rankings can ignore gaps under 0, 1 (default), 2.5 or 5 pts; ignored decisions are left out of the score entirely. Coaches need ${summary.rankings.min_decisions}+ judged decisions and ${summary.rankings.min_games}+ games to be ranked. The 1-pt default was chosen because in 2025, 64% of sub-1-pt decisions were toss-ups by nfl4th's own uncertainty, while the 1–5 pt band held most decisions and most win chance lost. A 5-pt cutoff leaves about a dozen decisions per coach, too few to rank.</p>
+  <h3>Aggressiveness</h3>
+  <p>Share of competitive decisions where the model favored going by ${summary.rankings.style_meta.edge}+ pts and the coach went for it. Style tiers compare a 90% Wilson interval with the league rate; coaches with fewer than ${summary.rankings.min_chances} such chances aren't ranked. Style is descriptive and not part of the Decision Score.</p>
+
   <h2>What the model does and does not account for</h2>
   <ul>
     <li><b>Included</b> (from nfl4th source): down, distance, field position, score, time, timeouts, the pre-game spread and total line (a team-strength proxy), era, roof type for field goals, and late/desperation situations.</li>
@@ -685,64 +701,118 @@ function luckScatter(rows, league, { width = 900, height = 420 } = {}) {
   return s + "</svg>";
 }
 
-export async function rankings() {
+function missBar(r) {
+  const parts = [["conservative_slight", "b-slight", "Slight (1–2.5)"], ["conservative_clear", "b-clear", "Clear (2.5–5)"], ["conservative_big", "b-big", "Big (5+)"]];
+  const total = parts.reduce((s, [k]) => s + r[k], 0);
+  if (!total) return '<span class="dim">none</span>';
+  return `<div style="display:flex;align-items:center;gap:8px"><div class="missbar" style="width:${Math.min(140, 20 + total * 4)}px" data-tip="${tip(`${r.coach}: passed-up go chances`, parts.map(([k, , l]) => [l, `${r[k]} · ${r[k + "_pts"].toFixed(1)} pts`]))}">${parts.map(([k, cls]) => (r[k] ? `<i class="${cls}" style="flex:${r[k]}"></i>` : "")).join("")}</div><span class="mono dim" style="font-size:12px">${r.conservative_slight}·${r.conservative_clear}·${r.conservative_big}</span></div>`;
+}
+
+function styleChip(s) {
+  const cls = { "More aggressive than most": "above", "More conservative than most": "below", Typical: "avg" }[s] || "nr";
+  return `<span class="tierchip ${cls}">${esc(s)}</span>`;
+}
+
+export async function rankings(params = new URLSearchParams()) {
   const { summary } = await seasonData();
-  const R = summary.rankings;
+  const RK = summary.rankings;
+  const tol = RK.tolerances.includes(params.get("tol")) ? params.get("tol") : RK.default;
+  const R = RK.by_tol[tol];
   const meta = seasonMeta();
   const live = meta.status !== "final";
   const ranked = R.coaches.filter((r) => r.ranked);
   const counts = (t) => ranked.filter((r) => r.tier === t).length;
   const above = ranked.filter((r) => r.tier === "Above average"), below = ranked.filter((r) => r.tier === "Below average");
-  const lucky = [...ranked].sort((a, b) => b.result_vs_exp - a.result_vs_exp)[0];
-  const unlucky = [...ranked].sort((a, b) => a.result_vs_exp - b.result_vs_exp)[0];
+  const base = RK.by_tol[RK.default].coaches.filter((r) => r.ranked);
+  const lucky = [...base].sort((a, b) => b.result_vs_exp - a.result_vs_exp)[0];
+  const unlucky = [...base].sort((a, b) => a.result_vs_exp - b.result_vs_exp)[0];
   const names = (rs) => rs.map((r) => `<a class="panel-link" href="#/coach/${encodeURIComponent(r.coach)}">${esc(r.coach)}</a>`).join(", ");
+  const tolText = {
+    "0": "Every decision counts, weighted by its size. Even a 0.3-pt difference counts a little against a coach.",
+    "1": "Recommended. Gaps under 1 pt are treated as coin flips: the model can't reliably tell those options apart, so they don't count for or against anyone.",
+    "2.5": "Only clear and big edges count. Fewer decisions per coach, so the ranges get wider.",
+    "5": "Only big edges count. Almost every coach gets nearly all of these right, and there are too few per coach to rank anyone fairly.",
+  }[tol];
+  const sty = RK.style, sm = RK.style_meta;
+  const styRanked = sty.filter((r) => r.aggr_rank);
+  const sevSum = (dir) => RK.severity_summary.filter((x) => x.direction === dir);
+  const consN = (k) => (sevSum("conservative").find((x) => x.severity === k) || { n: 0 }).n;
+  const aggrN = sevSum("aggressive").reduce((s, x) => s + x.n, 0);
 
   return `${head(`${meta.season} season · ${live ? `mid-season, through week ${meta.through_week}` : "full season"}`,
     `Coach <span class="grad">fourth-down decision</span> rankings`,
     `Who makes the best go-or-kick calls when it matters? This ranks one slice of coaching, fourth-down decisions, against a widely used public model${help("model")}. It says nothing about play-calling, player development or anything else a head coach does.`)}
 
-  ${live ? `<div class="callout warn" style="margin-bottom:16px"><b>Mid-season numbers.</b> With about ${Math.round(ranked.reduce((s, r) => s + r.games, 0) / ranked.length)} games per coach, ranges are wide and the order will move. Switch to <b>2025</b> in the top bar for a full season.</div>` : ""}
+  ${live ? `<div class="callout warn" style="margin-bottom:16px"><b>Mid-season numbers.</b> With about ${Math.round(ranked.reduce((s, r) => s + r.games, 0) / Math.max(1, ranked.length))} games per coach, ranges are wide and the order will move. Switch to <b>2025</b> in the top bar for a full season.</div>` : ""}
 
   <div class="panel hud" style="margin-bottom:16px">
     <div class="panel-head"><h2 class="sec">How the Decision Score works</h2><span class="dim" style="font-size:12.5px">League average: <b class="mono" style="color:var(--text)">${pct(R.league_score)}</b></span></div>
     <div class="steps">
       <div class="step"><div class="num">1</div><div><h3>The model weighs the options</h3><p>On every fourth down it estimates the team's win chance${help("winChance")} if they go for it and if they kick, using only what was known before the snap.</p></div></div>
-      <div class="step"><div class="num">2</div><div><h3>We check the coach's call</h3><p>Did the coach pick the side the model preferred, go or kick? Fake punts count as going for it.</p></div></div>
-      <div class="step"><div class="num">3</div><div><h3>Bigger moments count more</h3><p>A call worth 10 pts of win chance counts ten times as much as a call worth 1 pt. Blowouts are left out. Score = share of the stakes they got right.${help("score")}</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>Small gaps don't count</h3><p>If going and kicking are within the setting below (1 pt by default), it's a coin flip and the coach can't be wrong.${help("forgiveness")}</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>Bigger moments count more</h3><p>A call worth 10 pts of win chance counts ten times as much as a call worth 1 pt. Score = share of the stakes they got right.${help("score")}</p></div></div>
     </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px dashed var(--line)">
+      <span style="font-weight:600">Ignore gaps smaller than${help("forgiveness")}</span>
+      <div class="seg tolseg">${RK.tolerances.map((t) => `<button class="${t === tol ? "on" : ""}" data-go="#/rankings?tol=${t}">${t} pts${t === RK.default ? " ★" : ""}</button>`).join("")}</div>
+      <span class="dim" style="font-size:12.5px">${num(R.judged)} decisions judged · about ${Math.round(R.judged_per_coach)} per coach</span>
+    </div>
+    <p class="muted" style="margin:10px 0 0;font-size:13.5px">${tolText}</p>
   </div>
 
-  <div class="insights" style="margin-bottom:16px">
-    <div class="panel insight"><div class="ic">${icon("check")}</div><div><h3>Clearly above average (${counts("Above average")})</h3><p>${above.length ? names(above) : "Nobody separates from the pack yet."} Their whole range sits above the league average.${help("tier")}</p></div></div>
-    <div class="panel insight"><div class="ic">${icon("alert")}</div><div><h3>Clearly below average (${counts("Below average")})</h3><p>${below.length ? names(below) : "Nobody separates from the pack yet."} Their whole range sits below the league average.</p></div></div>
+  ${ranked.length ? `<div class="insights" style="margin-bottom:16px">
+    <div class="panel insight"><div class="ic">${icon("check")}</div><div><h3>Clearly above average (${counts("Above average")})</h3><p>${above.length ? names(above) : "Nobody separates from the pack at this setting."} Their whole range sits above the league average.${help("tier")}</p></div></div>
+    <div class="panel insight"><div class="ic">${icon("alert")}</div><div><h3>Clearly below average (${counts("Below average")})</h3><p>${below.length ? names(below) : "Nobody separates from the pack at this setting."} Their whole range sits below the league average.</p></div></div>
     <div class="panel insight"><div class="ic">${icon("dice")}</div><div><h3>Luck is a separate story</h3><p>${esc(lucky.coach)}'s fourth-down plays turned out ${signed(lucky.result_vs_exp, 0)} pts better than expected over the season; ${esc(unlucky.coach)}'s turned out ${signed(unlucky.result_vs_exp, 0)} pts. Results${help("rve")} are shown but never counted in the score.</p></div></div>
-  </div>
+  </div>` : ""}
 
   <div class="panel">
-    <div class="panel-head"><div><h2 class="sec">The ranking</h2><div class="sec-sub">${counts("Average range")} of ${ranked.length} coaches are in the average range: their order there is close to a coin flip. Click a coach for their full report.</div></div></div>
+    <div class="panel-head"><div><h2 class="sec">The ranking</h2><div class="sec-sub">${ranked.length ? `${counts("Average range")} of ${ranked.length} coaches are in the average range: their order there is close to a coin flip. Click a coach for their full report.` : `No coach has the ${RK.min_decisions}+ judged decisions needed to be ranked at this setting.`}</div></div></div>
+    ${ranked.length ? "" : `<div class="callout warn" style="margin-bottom:14px">At ${tol} pts each coach has only about ${Math.round(R.judged_per_coach)} decisions to judge, and nearly all of them are easy calls. That's why the default ignores gaps under 1 pt instead.</div>`}
     <div class="table-wrap"><table class="data">
-      <thead><tr><th class="r"># <span style="text-transform:none;letter-spacing:0">(likely)</span>${help("rankRange")}</th><th>Coach</th><th style="min-width:230px">Decision Score${help("score")} &amp; range${help("range")}</th><th>Tier${help("tier")}</th><th class="r">Critical calls right${help("critical")}</th><th class="r">Late &amp; close</th><th class="r">Luck${help("rve")}</th></tr></thead>
+      <thead><tr><th class="r"># <span style="text-transform:none;letter-spacing:0">(likely)</span>${help("rankRange")}</th><th>Coach</th><th style="min-width:230px">Decision Score${help("score")} &amp; range${help("range")}</th><th>Tier${help("tier")}</th><th class="r">Judged</th><th class="r">Critical calls right${help("critical")}</th><th class="r">Late &amp; close</th><th class="r">Luck${help("rve")}</th></tr></thead>
       <tbody>${R.coaches.map((r) => `<tr class="rowlink" data-go="#/coach/${encodeURIComponent(r.coach)}">
         <td class="r"><span class="rank-num">${r.ranked ? r.rank : "–"}</span>${r.ranked ? `<div class="dim mono" style="font-size:10.5px;white-space:nowrap" data-tip="${tip("Likely rank", [["90% of replays", `#${r.rank_lo} to #${r.rank_hi}`]])}">#${r.rank_lo}–${r.rank_hi}</div>` : ""}</td>
         <td><div class="team-cell">${tbadge(r.teams[r.teams.length - 1])}<div><div style="font-weight:600;white-space:nowrap">${esc(r.coach)}</div><div class="dim" style="font-size:12px">${r.teams.join(", ")} · ${r.games} games</div></div></div></td>
-        <td><div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:16px;font-weight:600;width:56px">${pct(r.score)}</span><div style="flex:1">${scoreBar(r, R.league_score)}</div></div></td>
+        <td><div style="display:flex;align-items:center;gap:12px"><span class="mono" style="font-size:16px;font-weight:600;width:56px">${pct(r.score)}</span><div style="flex:1">${scoreBar(r, R.league_score, Math.min(0.6, Math.floor(Math.min(...R.coaches.map((x) => x.score_lo)) * 20) / 20))}</div></div></td>
         <td>${tierChip(r.tier)}</td>
-        <td class="r mono">${r.critical_right}/${r.critical} <span class="dim">(${pct(r.critical_right / r.critical, 0)})</span></td>
-        <td class="r mono" data-tip="${tip("Late & close", [["Situation", "4th quarter or overtime, one-score game, critical decisions"], ["Right calls", `${r.late_close_right} of ${r.late_close}`]])}">${r.late_close ? `${r.late_close_right}/${r.late_close}` : "—"}</td>
+        <td class="r mono dim">${r.judged}</td>
+        <td class="r mono">${r.critical_right}/${r.critical} <span class="dim">(${r.critical ? pct(r.critical_right / r.critical, 0) : "—"})</span></td>
+        <td class="r mono" data-tip="${tip("Late & close", [["Situation", "4th quarter or overtime, one-score game"], ["Right calls", `${r.late_close_right} of ${r.late_close}`]])}">${r.late_close ? `${r.late_close_right}/${r.late_close}` : "—"}</td>
         <td class="r mono" style="color:${r.result_vs_exp > 0 ? "var(--good)" : r.result_vs_exp < 0 ? "var(--serious)" : "inherit"}">${signed(r.result_vs_exp, 0)}</td></tr>`).join("")}</tbody>
     </table></div>
     <div class="legend" style="margin-top:12px"><span><i class="dot" style="background:var(--accent)"></i>Decision Score</span><span><i style="background:var(--accent);opacity:.35;height:8px;width:18px;border-radius:4px"></i>90% range</span><span><i style="border-left:1px dashed var(--text-3);height:12px;width:1px;background:none"></i>League average</span></div>
   </div>
 
+  <div class="panel hud" style="margin-top:16px">
+    <div class="panel-head"><div><h2 class="sec">Aggressiveness ranking${help("aggressiveness")}</h2><div class="sec-sub">How often each coach went for it when the model favored going by ${sm.edge}+ pts (a clear or big edge). Most aggressive first.</div></div></div>
+    <div class="insights" style="margin-bottom:16px">
+      <div class="panel insight"><div class="ic">${icon("bolt")}</div><div><h3>Nobody is too aggressive</h3><p>In competitive games, coaches went for it in ${pct(sm.league_went_anyway_rate, 1)} of spots where kicking was clearly better. Only ${aggrN} decision${aggrN === 1 ? "" : "s"} all season were even slightly too aggressive.</p></div></div>
+      <div class="panel insight"><div class="ic">${icon("scale")}</div><div><h3>The real difference: passing up good gambles</h3><p>League-wide, coaches took ${pct(sm.league_take_rate, 0)} of clear go-for-it chances. Missed chances by size: ${consN("slight")} slight, ${consN("clear")} clear, ${consN("big")} big.</p></div></div>
+      <div class="panel insight"><div class="ic">${icon("info")}</div><div><h3>Style isn't the score</h3><p>A coach can be conservative and still rank well if they only kick when the edge is small. The Decision Score above is what grades the calls.</p></div></div>
+    </div>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th class="r">#</th><th>Coach</th><th style="min-width:200px">Took clear go chances</th><th>Style</th><th>Passed-up chances by size${help("severity")}</th><th class="r">Went when kick was clearly better</th></tr></thead>
+      <tbody>${sty.map((r) => `<tr class="rowlink" data-go="#/coach/${encodeURIComponent(r.coach)}">
+        <td class="r"><span class="rank-num">${r.aggr_rank || "–"}</span></td>
+        <td><div class="team-cell">${tbadge(r.teams[r.teams.length - 1])}<div style="font-weight:600;white-space:nowrap">${esc(r.coach)}</div></div></td>
+        <td>${r.go_chances ? `<div style="display:flex;align-items:center;gap:10px"><span class="mono" style="width:44px;font-weight:600">${pct(r.take_rate, 0)}</span><div class="minibar" style="flex:1" data-tip="${tip(r.coach, [["Took", `${r.took} of ${r.go_chances}`], ["90% range", `${pct(r.take_lo, 0)} – ${pct(r.take_hi, 0)}`], ["League", pct(sm.league_take_rate, 0)]])}"><i style="left:${100 * r.take_lo}%;width:${100 * (r.take_hi - r.take_lo)}%;background:var(--accent);opacity:.3"></i><i style="left:calc(${100 * r.take_rate}% - 2px);width:4px;background:var(--accent)"></i><i style="left:${100 * sm.league_take_rate}%;width:1px;background:var(--text-3)"></i></div><span class="mono dim" style="font-size:12px">${r.took}/${r.go_chances}</span></div>` : "—"}</td>
+        <td>${styleChip(r.style)}</td>
+        <td>${missBar(r)}</td>
+        <td class="r mono">${r.went_anyway}/${r.kick_spots}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <div class="legend" style="margin-top:12px"><span><i class="box b-slight"></i>Slight miss (1–2.5 pts)</span><span><i class="box b-clear"></i>Clear miss (2.5–5)</span><span><i class="box b-big"></i>Big miss (5+)</span><span class="dim">Coaches with fewer than ${RK.min_chances} clear chances aren't ranked.</span></div>
+  </div>
+
   <div class="grid g-main" style="margin-top:16px">
-    <div class="panel"><div class="panel-head"><div><h2 class="sec">Good decisions vs. good luck</h2><div class="sec-sub">Right = better decisions. Up = fourth-down plays turned out better than the model expected (execution and luck).</div></div></div>${luckScatter(ranked, R.league_score)}</div>
+    <div class="panel"><div class="panel-head"><div><h2 class="sec">Good decisions vs. good luck</h2><div class="sec-sub">Right = better decisions (default setting). Up = fourth-down plays turned out better than the model expected (execution and luck).</div></div></div>${luckScatter(base, RK.by_tol[RK.default].league_score)}</div>
     <div class="panel"><div class="panel-head"><h2 class="sec">What this ranking does and doesn't say</h2></div>
       <ul style="margin:0;padding-left:18px;color:var(--text-2);font-size:13.5px;display:grid;gap:8px">
-        <li><b>It measures:</b> how often a coach's go-or-kick call matched the model, weighted by how much win chance was on the line.</li>
+        <li><b>It measures:</b> how often a coach's go-or-kick call matched the model when the gap was big enough to matter, weighted by how much win chance was on the line.</li>
         <li><b>It doesn't measure:</b> play-calling, clock management, two-point tries, or whether the play worked.</li>
-        <li><b>The model isn't perfect.</b> It doesn't know about injuries, matchups, weather or the specific kicker. A coach can have good reasons to disagree.</li>
+        <li><b>The model isn't perfect.</b> It doesn't know about injuries, matchups, weather or the specific kicker. That's one reason small gaps are forgiven.</li>
         <li><b>Results are luck plus execution.</b> A coach with good calls can still lose; a coach with risky calls can still win. That's why results stay out of the score.</li>
-        <li><b>Only big gaps are real.</b> The tiers tell you which differences hold up statistically; the exact order inside the average range does not.</li>
+        <li><b>Only big gaps between coaches are real.</b> The tiers tell you which differences hold up statistically; the exact order inside the average range does not.</li>
       </ul>
       <a class="btn" style="margin-top:14px" href="#/guide">${icon("info")}New to this? Read the guide</a>
     </div>
@@ -790,10 +860,17 @@ export async function guide() {
   </div>
   <p>"Worked out" means the team's win chance after the play ended up at least as high as the model expected for the option they chose.</p>
 
-  <h2>5. Clear calls vs. toss-ups${help("clear")}</h2>
+  <h2>5. How big is the gap?${help("severity")}</h2>
+  <p>Not every disagreement with the model matters. We sort each one by how much win chance the coach's choice gave up:</p>
+  <div class="sevscale" style="margin:16px 0 22px"><div class="bands"><i class="b-coin"></i><i class="b-slight"></i><i class="b-clear"></i><i class="b-big"></i></div>
+    <div class="labels">${SEV_BANDS.map((b) => `<span><b>${b.name}</b>${esc(b.text)}</span>`).join("")}</div></div>
+  <p><b>What does a gap mean in real terms?</b> Say punting gives a 33% win chance and going for it gives 37%. Out of 100 games played from that exact spot, going for it would win about 4 more. The risk of failing is already included: the 37% counts all the times the attempt fails. So the gap isn't "reward minus risk". It's the net difference.</p>
+  <p><b>So why forgive small gaps?</b> Because the model can be off by a point or so, and coaches know things it doesn't (an injured lineman, a great kicker, the wind). Under 1 pt, the model genuinely can't tell the options apart, so we call it a <b>coin flip</b> and never count it against anyone. On the rankings page you can choose to forgive even more.</p>
+
+  <h2>6. Clear calls vs. toss-ups${help("clear")}</h2>
   <p>Some decisions are obvious; others are coin flips. The model's estimates come with a range of uncertainty. When the whole range favors one option, we call it a <b>clear call</b>. When it doesn't, it's a <b>toss-up</b>, and disagreeing with the model there is no big deal.</p>
 
-  <h2>6. Where to go next</h2>
+  <h2>7. Where to go next</h2>
   <div class="grid g-3">
     <a class="panel" href="#/rankings"><h3 style="margin:0 0 4px">${icon("trophy", 'width="16" height="16"')} Coach rankings</h3><p class="dim" style="margin:0">Who makes the best fourth-down calls, with honest uncertainty.</p></a>
     <a class="panel" href="#/games"><h3 style="margin:0 0 4px">${icon("games", 'width="16" height="16"')} Games</h3><p class="dim" style="margin:0">Pick any game and walk through its fourth downs.</p></a>

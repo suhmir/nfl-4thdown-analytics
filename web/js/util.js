@@ -107,12 +107,34 @@ export function initTooltip() {
 export const tip = (title, rows = []) =>
   esc(`<div class="tt-h">${title}</div>` + rows.map(([k, v]) => `<div class="tt-r"><span>${k}</span><b>${v}</b></div>`).join(""));
 
-export function verdictHtml(d) {
-  if (d.cost < 0.05) return `<span class="verdict ok">${icon("check")}Matches model</span>`;
-  if (d.tier === "toss_up") return `<span class="verdict meh">${icon("scale")}Close call</span>`;
-  return `<span class="verdict bad">${icon("alert")}${ERR[d.err] || "Differs"}</span>`;
+// Severity scale for disagreements with the model (pts of win chance given up).
+export const SEV = {
+  match: { label: "Matches model", cls: "ok", icon: "check", rank: 0 },
+  coin_flip: { label: "Coin flip", cls: "meh", icon: "scale", rank: 1 },
+  slight: { label: "Slightly", cls: "warn", icon: "alert", rank: 2 },
+  clear: { label: "", cls: "bad", icon: "alert", rank: 3 },
+  big: { label: "Very", cls: "crit", icon: "alert", rank: 4 },
+};
+const DIRWORD = { conservative: "conservative", aggressive: "aggressive", kick_choice: "weaker kick" };
+export const SEV_BANDS = [
+  { key: "coin_flip", from: 0, to: 1, name: "Coin flip", text: "Under 1 pt, or the model itself isn't sure. Either choice is fine." },
+  { key: "slight", from: 1, to: 2.5, name: "Slight", text: "1 to 2.5 pts. A real but modest edge; reasonable coaches can differ." },
+  { key: "clear", from: 2.5, to: 5, name: "Clear", text: "2.5 to 5 pts. A meaningful edge the coach passed up." },
+  { key: "big", from: 5, to: 12, name: "Big", text: "5+ pts. A major edge left on the table." },
+];
+
+export function sevLabel(d) {
+  const s = SEV[d.sev] || SEV.match;
+  if (d.sev === "match" || d.sev === "coin_flip") return s.label;
+  const w = DIRWORD[d.dir] || "different";
+  const base = d.sev === "clear" ? w : `${s.label} ${w}`;
+  return d.dir === "kick_choice" ? `${d.sev === "big" ? "Much " : d.sev === "slight" ? "Slightly " : ""}weaker kick` : base[0].toUpperCase() + base.slice(1);
 }
 
+export function verdictHtml(d) {
+  const s = SEV[d.sev] || SEV.match;
+  return `<span class="verdict ${s.cls}">${icon(s.icon)}${sevLabel(d)}</span>`;
+}
 // ---------- Plain-language layer ----------
 // One definition per term, shown through the "?" help icons and on the guide page.
 export const GLOSSARY = {
@@ -129,6 +151,9 @@ export const GLOSSARY = {
   tier: ["Tier", "Above average / below average only when the coach's whole range sits above or below the league average. Everyone else is in the average range."],
   goRate: ["Went for it", "The share of fourth downs where the team ran a play instead of punting or kicking a field goal."],
   model: ["The model (nfl4th)", "A widely used public fourth-down model by analyst Ben Baldwin, built from years of NFL play-by-play. It estimates win chance for each option using the score, clock, field position, distance, timeouts and the betting line."],
+  severity: ["Gap size", "How much win chance the choice gave up versus the model's best option: coin flip (under 1 pt), slight (1–2.5), clear (2.5–5) or big (5+). Coin flips are never counted against a coach."],
+  aggressiveness: ["Aggressiveness", "How often a coach goes for it when the model clearly favors going (by 2.5+ pts). Higher = takes more of the good gambles."],
+  forgiveness: ["Ignore gaps under…", "Decisions where going vs. kicking differ by less than this are treated as coin flips and left out of the Decision Score."],
   competitive: ["Competitive only", "Hides decisions in blowouts (where the best option's win chance was under 2% or over 98%), since those barely matter."],
 };
 
@@ -158,7 +183,7 @@ export function plainEnglish(d) {
 
 /** Call quality vs. result for one decision. */
 export function callResult(d) {
-  const call = d.right ? "right" : d.tier === "toss_up" ? "close" : "wrong";
+  const call = d.right || d.sev === "match" ? "right" : d.sev === "coin_flip" ? "close" : "wrong";
   const worked = d.out.worked;
   const lesson = {
     "right|true": ["Right call, and it worked", "The decision was sound and the play delivered."],

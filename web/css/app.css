@@ -261,6 +261,9 @@ h2.sec { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: 0.01em; }
 .verdict.ok { color: var(--good); }
 .verdict.bad { color: var(--serious); }
 .verdict.meh { color: var(--text-3); }
+.verdict.warn { color: var(--warn); }
+.verdict.crit { color: var(--critical); }
+:root[data-theme="light"] .verdict.warn { color: #a86f00; }
 .small-n { color: var(--warn); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 
 /* ---------- Tables ---------- */
@@ -530,3 +533,16 @@ svg.chart [data-tip] { cursor: pointer; }
   .steps, .options-explain, .glossary { grid-template-columns: 1fr; }
   .nav a.hide-sm-nav { display: none; }
 }
+
+/* ---------- Severity scale ---------- */
+.sevscale { position: relative; margin: 14px 0 4px; }
+.sevscale .bands { display: grid; grid-template-columns: 1fr 1.5fr 2.5fr 3fr; gap: 3px; height: 12px; }
+.sevscale .bands i { border-radius: 4px; }
+.sevscale .labels { display: grid; grid-template-columns: 1fr 1.5fr 2.5fr 3fr; gap: 3px; font-size: 11px; color: var(--text-3); margin-top: 6px; }
+.sevscale .labels span b { display: block; color: var(--text-2); font-weight: 600; }
+.sevscale .mark { position: absolute; top: -5px; width: 3px; height: 22px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 2px var(--panel-solid); transform: translateX(-1px); }
+.b-coin { background: var(--neutral-mid); } .b-slight { background: color-mix(in srgb, var(--warn) 60%, var(--neutral-mid)); }
+.b-clear { background: var(--serious); } .b-big { background: var(--critical); }
+.missbar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; min-width: 120px; background: var(--panel-hi); }
+.missbar i { display: block; height: 100%; }
+.tolseg button { min-width: 54px; justify-content: center; }
