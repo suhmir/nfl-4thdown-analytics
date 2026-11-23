@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NFL Decision Intelligence</title>
+  <meta name="description" content="Fourth-down decision analysis: every NFL fourth down scored against nfl4th's model, separated from outcome.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230a0f1a'/%3E%3Cpath d='M5 18 12 5l7 13M8.5 12.5h7' stroke='%235ce1e6' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#/">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#05070d" stroke-width="2.4" stroke-linecap="round"><path d="M5 18 12 5l7 13M8.5 12.5h7"/></svg></span>
+        <span class="brand-name">Decision Intelligence<small>NFL · 4th down</small></span>
+      </a>
+      <nav class="nav" id="nav"></nav>
+      <div class="sidebar-foot" id="foot"></div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <div class="crumbs" id="crumbs"></div>
+        <div class="top-controls">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="search" type="search" placeholder="Team or coach…" autocomplete="off" aria-label="Search teams and coaches">
+            <div class="search-results" id="search-results"></div>
+          </div>
+          <div class="seg" id="season-seg" role="group" aria-label="Season"></div>
+          <div class="seg" id="view-seg" role="group" aria-label="Population">
+            <button data-view="all" data-tip="&lt;div class='tt-h'&gt;All eligible decisions&lt;/div&gt;">All</button>
+            <button data-view="competitive" data-tip="&lt;div class='tt-h'&gt;Competitive only&lt;/div&gt;Drops decisions where the best option's win probability is below 2% or above 98%.">Competitive</button>
+          </div>
+          <button class="icon-btn" id="theme" aria-label="Toggle light/dark"></button>
+        </div>
+      </header>
+      <main class="page" id="app"><div class="loader">LOADING</div></main>
+    </div>
+  </div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+[project]
+name = "nfldi"
+version = "0.1.0"
+description = "NFL Decision Intelligence: fourth-down decision analysis on nflverse play-by-play and nfl4th model values."
+requires-python = ">=3.11"
+dependencies = ["pandas>=2.2", "pyarrow>=15", "pyreadr>=0.5", "numpy>=1.26"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "tabulate>=0.9"]
+
+[project.scripts]
+nfldi = "nfldi.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
