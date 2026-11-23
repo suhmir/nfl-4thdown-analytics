@@ -1,7 +1,7 @@
-import { state, seasonData, scoped, view, gameWP, seasonMeta } from "./data.js";
+import { state, seasonData, scoped, view, gameWP, seasonMeta, router } from "./data.js";
 import {
   esc, pct, pp, signed, num, clock, qlabel, fieldPos, downDist, scoreText, weekLabel, weekShort,
-  teamName, icon, tip, verdictHtml, smallSample, OPT, OPT_SHORT, TIER, ERR, SMALL_N,
+  teamName, icon, tip, verdictHtml, smallSample, OPT, OPT_SHORT, TIER, ERR, SMALL_N, TEAMS,
 } from "./util.js";
 import { rankChart, dumbbell, lineChart, heatmap, wpChart, fieldGraphic, intervalBar } from "./charts.js";
 
@@ -131,12 +131,12 @@ export async function games(params) {
   let list = summary.games;
   if (team) list = list.filter((g) => g.home === team || g.away === team);
   if (week) list = list.filter((g) => g.week === week);
-  const teams = Object.keys((await import("./util.js")).TEAMS);
+  const teams = Object.keys(TEAMS);
   const qs = (o) => "#/games?" + new URLSearchParams(Object.entries({ week, team, ...o }).filter(([, v]) => v)).toString();
 
   return `${head("Game explorer", "Every game, every fourth down", "Pick a week or a team, then open a game to see its win-probability flow and each decision point.", scopeNote())}
   <div class="filters">
-    <div class="week-chips">${(team ? [`<button class="${!week ? "on" : ""}" onclick="location.hash='${qs({ week: "" })}'">All</button>`] : []).join("")}${weeks.map((w) => `<button class="${w === week ? "on" : ""}" onclick="location.hash='${qs({ week: w })}'" title="${weekLabel(w, w > 18 ? "POST" : "REG")}">${weekShort(w)}</button>`).join("")}</div>
+    <div class="week-chips">${(team ? [`<button class="${!week ? "on" : ""}" data-go="${qs({ week: "" })}">All</button>`] : []).join("")}${weeks.map((w) => `<button class="${w === week ? "on" : ""}" data-go="${qs({ week: w })}" title="${weekLabel(w, w > 18 ? "POST" : "REG")}">${weekShort(w)}</button>`).join("")}</div>
     <select class="select" data-param="team" data-reset="week">
       <option value="">All teams</option>${teams.map((t) => `<option ${t === team ? "selected" : ""} value="${t}">${t} · ${teamName(t)}</option>`).join("")}
     </select>
@@ -333,7 +333,7 @@ export async function decisionsList(params) {
   </div>
   <div class="panel"><div class="table-wrap"><table class="data">
     <thead><tr><th>Game</th><th>Team</th><th>Situation</th><th>Chose</th><th>Model</th><th>Tier</th><th class="r">Go − kick</th><th class="r">Cost</th></tr></thead>
-    <tbody>${shown.map((d) => `<tr class="rowlink" onclick="location.hash='#/decision/${d.id}'">
+    <tbody>${shown.map((d) => `<tr class="rowlink" data-go="#/decision/${d.id}">
       <td class="dim mono" style="font-size:12px">${weekShort(d.week)} · ${esc(d.away)}@${esc(d.home)}</td><td class="team">${esc(d.pos)}</td>
       <td>${situation(d)}</td><td>${optTag(d.choice)}</td><td>${optTag(d.best)}</td><td>${tierTag(d.tier)}</td>
       <td class="r mono">${signed(d.gb, 2)}</td><td class="r mono" style="${d.cost >= 1 ? "color:var(--serious)" : ""}">${d.cost.toFixed(2)}</td></tr>`).join("") || `<tr><td colspan="8" class="empty-state">No decisions match.</td></tr>`}</tbody>
@@ -357,10 +357,10 @@ function unitTable(rows, kind, params) {
   const maxCost = Math.max(...rows.map((r) => r.wp_cost_per_game_hi || r.wp_cost_per_game));
   const th = ([k, label, cls]) => {
     const next = sort === k && dir === -1 ? "asc" : "desc";
-    return `<th class="${cls || ""} ${sort === k ? "sorted" : ""}" onclick="location.hash='#/${kind}?sort=${k}&dir=${next}'">${label}<span class="arrow">${sort === k ? (dir === -1 ? "▼" : "▲") : "↕"}</span></th>`;
+    return `<th class="${cls || ""} ${sort === k ? "sorted" : ""}" data-go="#/${kind}?sort=${k}&dir=${next}">${label}<span class="arrow">${sort === k ? (dir === -1 ? "▼" : "▲") : "↕"}</span></th>`;
   };
   return `<div class="table-wrap"><table class="data"><thead><tr>${COLS.map((c) => th(kind === "coaches" && c[0] === "name" ? ["name", "Coach", null] : c)).join("")}</tr></thead><tbody>
-  ${rows.map((r) => `<tr class="rowlink" onclick="location.hash='${r.href}'">
+  ${rows.map((r) => `<tr class="rowlink" data-go="${r.href}">
     <td><div class="team-cell">${r.badge}<div><div style="font-weight:600;white-space:nowrap">${esc(r.name)}</div><div class="dim" style="font-size:12px">${esc(r.sub)} ${smallSample(r) ? warnTag() : ""}</div></div></div></td>
     <td class="r mono">${r.decisions}<span class="dim"> / ${r.games}g</span></td>
     <td class="r mono">${pct(r.go_rate)}</td><td class="r mono dim">${pct(r.model_go_rate)}</td>
@@ -480,9 +480,9 @@ export async function lab(id, params) {
   return `${head("What-if laboratory", "Replay the call. Change the decision.", "Choose a historical fourth down, then switch to a different option to compare the model's estimates. These are expected values before the snap. Nobody can know how the other option would actually have played out.", scopeNote())}
   <div class="lab-grid">
     <div class="panel">
-      <div class="seg" style="margin-bottom:10px;width:100%">${[["costly", "Costliest"], ["close", "Toss-ups"], ["bold", "Bold goes"]].map(([k, l]) => `<button class="${mode === k ? "on" : ""}" style="flex:1;justify-content:center" onclick="location.hash='${lq({ list: k })}'">${l}</button>`).join("")}</div>
+      <div class="seg" style="margin-bottom:10px;width:100%">${[["costly", "Costliest"], ["close", "Toss-ups"], ["bold", "Bold goes"]].map(([k, l]) => `<button class="${mode === k ? "on" : ""}" style="flex:1;justify-content:center" data-go="${lq({ list: k })}">${l}</button>`).join("")}</div>
       <select class="select" style="width:100%;margin-bottom:10px" data-param="team" data-route="#/lab"><option value="">All teams</option>${teamsList.map((t) => `<option ${t === tm ? "selected" : ""}>${t}</option>`).join("")}</select>
-      <div class="picker-list">${list.map((x) => `<button class="${x.id === d.id ? "on" : ""}" onclick="location.hash='${"#/lab/" + x.id + "?" + new URLSearchParams({ list: mode, ...(tm ? { team: tm } : {}) })}'">
+      <div class="picker-list">${list.map((x) => `<button class="${x.id === d.id ? "on" : ""}" data-go="${"#/lab/" + x.id + "?" + new URLSearchParams({ list: mode, ...(tm ? { team: tm } : {}) })}">
         <span class="t">${esc(x.pos)} · ${downDist(x)} · ${qlabel(x.qtr)} ${clock(x.clock)}</span><span class="mono" style="font-size:12px;color:${x.cost >= 1 ? "var(--serious)" : "var(--text-3)"}">−${x.cost.toFixed(1)}</span>
         <span class="s">${weekLabel(x.week, x.stype)} vs ${esc(x.def)} · ${scoreText(x.sd)} · chose ${OPT_SHORT[x.choice]}</span></button>`).join("")}</div>
     </div>
@@ -521,8 +521,8 @@ export async function lab(id, params) {
 export function bindLab(id, params) {
   document.querySelectorAll("#lab-options [data-alt]").forEach((b) => b.addEventListener("click", () => {
     const p = new URLSearchParams(params); p.set("alt", b.dataset.alt);
-    const cur = location.hash.match(/^#\/lab\/([^?]+)/);
-    location.hash = `#/lab/${cur ? cur[1] : id || ""}?${p}`;
+    const cur = router.route.match(/^#\/lab\/([^?]+)/);
+    router.nav(`#/lab/${cur ? cur[1] : id || ""}?${p}`);
   }));
 }
 
@@ -531,7 +531,7 @@ export function bindLab(id, params) {
 // ===================================================================
 export async function methodology() {
   const { summary } = await seasonData();
-  const m = (await import("./data.js")).state.manifest;
+  const m = state.manifest;
   const ex = summary.exclusions;
   const totalSnaps = ex.reduce((s, r) => s + r.snaps, 0);
   const reasons = {

@@ -46,7 +46,15 @@ export function scoped(decisions) {
 
 export const view = (summary) => summary.views[state.view];
 
-export const gameWP = (season, gameId) => getJSON(`data/${season}/games/${gameId}.json`);
+// Win-probability series are bundled one file per week: {game_id: [[play_id, qtr, t, home_wp], ...]}
+export async function gameWP(season, gameId) {
+  const week = Number(gameId.split("_")[1]);
+  const all = await getJSON(`data/${season}/wp/week_${String(week).padStart(2, "0")}.json`);
+  return { game_id: gameId, wp: all[gameId] || [] };
+}
+
+// Set by app.js. Views navigate through router.nav(route) and read router.route.
+export const router = { route: "#/", nav: (r) => { location.hash = r; } };
 
 export function seasonMeta(season = state.season) {
   return state.manifest.seasons.find((s) => s.season === Number(season));

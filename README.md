@@ -15,7 +15,7 @@ This project scores **every fourth-down decision** in the 2025 season and the li
 | Metrics | `src/nfldi/nfl/metrics.py` | Best option, WP cost, confidence tier, error type. **All units and sign conventions are defined in this one file.** |
 | Aggregation | `src/nfldi/nfl/aggregate.py` | Team/coach summaries with game-level bootstrap intervals; situation grids |
 | Export | `src/nfldi/nfl/export.py` | Static JSON for the web app |
-| Web app | `web/` | No-build vanilla JS SPA: overview, game explorer, decision detail, decision search, team & coach reports, what-if lab, methodology |
+| Web app | `web/` | No-build vanilla JS single-page app (address bar shows simple names like `team-PIT`, `decision-2025-18-CLE-CIN-3455`): overview, game explorer, decision detail, decision search, team & coach reports, what-if lab, methodology |
 | Validation | `scripts/validate.py` → `docs/VALIDATION_*.md` | Identity checks, comparison with nfl4th's own go/kick coding, stratified manual-review sample |
 | Tests | `tests/` | 26 tests on hand-built plays: classification, sequencing, metric arithmetic, bootstrap |
 
@@ -30,6 +30,7 @@ python -m http.server 8000 -d web              # open http://localhost:8000
 ```
 
 ```bash
+python scripts/build_artifact.py        # single-file bundle (inline CSS/JS) in dist/artifact/
 pytest                                  # calculation tests
 python scripts/validate.py 2025         # regenerate the validation report
 nfldi refresh --season 2026             # new weekly snapshot for the live season

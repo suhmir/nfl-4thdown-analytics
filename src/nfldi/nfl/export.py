@@ -104,6 +104,8 @@ def build_season(season: int, nfl4th: pd.DataFrame, final: bool) -> dict:
     decisions, snaps = D.build_decisions(pbp, nfl4th)
     d = M.add_metrics(decisions)
     out_dir = WEB_DATA / str(season)
+    import shutil
+    shutil.rmtree(out_dir, ignore_errors=True)
 
     # Games list (including games whose model values are pending).
     games = pbp.groupby("game_id").agg(
@@ -123,14 +125,14 @@ def build_season(season: int, nfl4th: pd.DataFrame, final: bool) -> dict:
                           for g, a in zip(games["game_id"], games["away"])]
     games = games.sort_values(["week", "date", "game_id"])
 
-    # Per-game win-probability series for the game explorer.
-    for gid, gp in pbp[pbp["home_wp"].notna()].groupby("game_id"):
-        gp = gp.sort_values("play_id")
-        _write(out_dir / "games" / f"{gid}.json", {
-            "game_id": gid,
-            # [play_id, quarter, seconds elapsed, home win probability]
-            "wp": [[int(p), int(q), round(float(t), 1), round(float(w), 4)]
-                   for p, q, t, w in zip(gp["play_id"], gp["qtr"], _elapsed(gp), gp["home_wp"])],
+    # Win-probability series for the game explorer, one file per week
+    # (keeps the published file count small).
+    wp_rows = pbp[pbp["home_wp"].notna()].sort_values(["game_id", "play_id"])
+    for week, wk in wp_rows.groupby("week"):
+        _write(out_dir / "wp" / f"week_{int(week):02d}.json", {
+            gid: [[int(p), int(q), round(float(t), 1), round(float(w), 4)]
+                  for p, q, t, w in zip(gp["play_id"], gp["qtr"], _elapsed(gp), gp["home_wp"])]
+            for gid, gp in wk.groupby("game_id")
         })
 
     records = [_decision_record(r) for _, r in d.iterrows()]

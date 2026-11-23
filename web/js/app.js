@@ -1,4 +1,4 @@
-import { state, loadManifest, seasonData } from "./data.js";
+import { state, loadManifest, seasonData, router } from "./data.js";
 import { icon, initTooltip, teamName, TEAMS, esc } from "./util.js";
 import * as V from "./views.js";
 
@@ -17,8 +17,47 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-function parseRoute() {
-  const raw = location.hash.replace(/^#/, "") || "/";
+// Routing. Inside the app every route is written "#/section/arg?query".
+// The address bar only ever shows a plain name ("teams", "team-PIT",
+// "decision-2025-18-CLE-CIN-3961", "coach-mike-tomlin") so links stay short
+// and work in hosts that only pass plain fragments. Filters (the ?query part)
+// live in memory and are not part of the shareable link.
+const slug = (x) => x.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+function toPlain(route) {
+  const { section, arg } = parseRoute(route);
+  if (!arg) return section;
+  if (section === "coach") return `coach-${slug(arg)}`;
+  return `${section}-${arg.replace(/_/g, "-")}`;
+}
+
+async function routeFromHash(hash) {
+  if (!hash || hash === "#") return "#/";
+  if (hash.startsWith("#/")) return hash; // older links
+  const m = decodeURIComponent(hash.slice(1)).match(/^([a-z]+)(?:-(.+))?$/);
+  if (!m || !(m[1] in CRUMB)) return "#/";
+  const [, section, rest] = m;
+  if (!rest) return section === "overview" ? "#/" : `#/${section}`;
+  if (section === "coach") {
+    const { summary } = await seasonData();
+    const c = summary.views.all.coaches.find((x) => slug(x.coach) === rest);
+    return c ? `#/coach/${encodeURIComponent(c.coach)}` : "#/coaches";
+  }
+  if (section === "team") return `#/team/${rest.toUpperCase()}`;
+  return `#/${section}/${rest.replace(/-/g, "_")}`;
+}
+
+let expectHash = null;
+function navigate(route) {
+  router.route = route.startsWith("#") ? route : `#${route}`;
+  const plain = `#${toPlain(router.route)}`;
+  if (location.hash !== plain) { expectHash = plain; location.hash = plain; }
+  render();
+}
+router.nav = navigate;
+
+function parseRoute(route = router.route) {
+  const raw = route.replace(/^#/, "") || "/";
   const [path, query = ""] = raw.split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   return { section: parts[0] || "overview", arg: parts[1], params: new URLSearchParams(query) };
@@ -75,7 +114,7 @@ function bindParamSelects(section, arg) {
     params.delete("page");
     if (sel.dataset.reset) sel.dataset.reset.split(",").forEach((r) => params.delete(r));
     const base = sel.dataset.route || `#/${section}${arg ? "/" + encodeURIComponent(arg) : ""}`;
-    location.hash = `${base}?${params}`;
+    navigate(`${base}?${params}`);
   }));
 }
 
@@ -91,7 +130,7 @@ function setSeason(season, rerender = true) {
     const { section } = parseRoute();
     // detail pages belong to one season; go to that season's list instead
     const up = { game: "#/games", decision: "#/decisions", lab: "#/lab" }[section];
-    if (up) location.hash = up; else render();
+    if (up) navigate(up); else render();
   }
 }
 
@@ -111,7 +150,7 @@ function setTheme(t) {
 function initSearch() {
   const input = document.getElementById("search"), box = document.getElementById("search-results");
   let items = [], sel = 0;
-  const go = (href) => { location.hash = href; input.value = ""; box.classList.remove("open"); input.blur(); };
+  const go = (href) => { navigate(href); input.value = ""; box.classList.remove("open"); input.blur(); };
   input.addEventListener("input", async () => {
     const q = input.value.trim().toLowerCase();
     if (!q) return box.classList.remove("open");
@@ -138,7 +177,8 @@ function initSearch() {
 }
 
 async function boot() {
-  setTheme(store.get("nfldi.theme") || "dark");
+  // Dark is the designed default; an explicit choice (ours or the host's) wins.
+  setTheme(store.get("nfldi.theme") || document.documentElement.getAttribute("data-theme") || "dark");
   document.getElementById("theme").addEventListener("click", () => setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   initTooltip();
   document.getElementById("nav").innerHTML = NAV.map(([k, label, href, ic]) => `<a href="${href}" data-key="${k}">${icon(ic)}<span>${label}</span></a>`).join("");
@@ -152,7 +192,21 @@ async function boot() {
   setSeason(seasons.some((s) => s.season === saved) ? saved : seasons.find((s) => s.status === "final")?.season ?? seasons[0].season, false);
   setView(store.get("nfldi.view") === "competitive" ? "competitive" : "all", false);
   initSearch();
-  window.addEventListener("hashchange", render);
+  // One delegated handler for every in-app link and data-go control.
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const el = e.target.closest('[data-go], a[href^="#/"]');
+    if (!el) return;
+    e.preventDefault();
+    navigate(el.getAttribute("data-go") || el.getAttribute("href"));
+  });
+  window.addEventListener("hashchange", async () => {
+    if (location.hash === expectHash) { expectHash = null; return; }
+    expectHash = null;
+    router.route = await routeFromHash(location.hash);
+    render();
+  });
+  router.route = await routeFromHash(location.hash);
   render();
 }
 
